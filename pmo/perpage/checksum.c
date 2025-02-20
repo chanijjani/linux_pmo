@@ -10,8 +10,6 @@
 #include "../checksum.h"
 
 
-/* TODO:
- * 99.999% sure this won't work with encrypt_together. Will double check. */
 char *PMO_EMPTY_CHECKSUM;
 struct pmo_sha256 *sha256_region;
 
@@ -33,15 +31,12 @@ void pmo_obtain_shadow_hash(struct vpma_area_struct *vpma, size_t pagenum)
 
 void pmo_assign_primary_hash(struct vpma_area_struct *vpma, size_t pagenum)
 {
-	size_t shadow_sha_offset = pmo_address_to_sha_offset(vpma->phys_shadow) + pagenum,
+        size_t shadow_sha_offset = pmo_address_to_sha_offset(vpma->phys_shadow) + pagenum,
                primary_sha_offset = pmo_address_to_sha_offset(vpma->phys_primary) + pagenum;
 	BUG_ON(!PMO_IV_IS_ENABLED());
-	pmo_get_page_hash(OFFSET_TO_SHA(primary_sha_offset),
-			vpma->primary + pagenum *PAGE_SIZE);
-	/*
         memcpy_flushcache(OFFSET_TO_SHA(primary_sha_offset),
                         OFFSET_TO_SHA(shadow_sha_offset), 32);
-			*/
+        //pmo_sync(OFFSET_TO_SHA(primary_sha_offset), 32);
         pmo_barrier();
         return;
 }
@@ -49,7 +44,7 @@ void pmo_assign_primary_hash(struct vpma_area_struct *vpma, size_t pagenum)
 void pmo_get_page_hash(void *ret, void *data)
 {
         struct crypto_shash *alg = crypto_alloc_shash("sha256", 0, 0);
-        char *digest = kvcalloc(sizeof(char), 32, GFP_KERNEL);//digest[32];
+        char *digest = kvcalloc(sizeof(char), 32, GFP_KERNEL);
         if(IS_ERR(alg))
                 printk("Could not allocate algorithm");
 
@@ -60,11 +55,8 @@ void pmo_get_page_hash(void *ret, void *data)
         return;
 }
 
-/* TODO:
- * 99.999% sure this won't work with encrypt_together. Will double check. */
 char *PMO_EMPTY_CHECKSUM;
 struct pmo_sha256 *sha256_region;
-
 
 void pmo_initialize_checksum(void)
 {
@@ -99,19 +91,14 @@ void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
                 printk(KERN_INFO "PMO hashes with offset %ld are not identical!",
                                 page_offset);
 
-		strncpy(buffer, sha256hash, 32);
+		memcpy(buffer, sha256hash, 32);
 		buffer[32] = 0;
 
-		printk("Expected SHA: %s", buffer);
+		printk(KERN_INFO "Expected SHA was %s", buffer);
 
-		strncpy(buffer, _data, 32);
-		printk("The data are %s\n", buffer);
-
-		strncpy(buffer, OFFSET_TO_SHA(primary_sha_offset), 32);
-		printk("%s\n", buffer);
-
-		strncpy(buffer, OFFSET_TO_SHA(shadow_sha_offset), 32);
-		printk("%s\n", buffer);
+		memcpy(buffer, OFFSET_TO_SHA(shadow_sha_offset), 32);
+		printk(KERN_INFO "But the ctual SHA was %s", buffer);
+		printk(KERN_INFO "The PMO was probably not properly detached.\n");
 		dump_stack();
         }
 

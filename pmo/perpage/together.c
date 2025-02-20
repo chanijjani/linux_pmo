@@ -144,6 +144,7 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
 		loff_t primary_pos = (loff_t)(vpma->phys_primary + offset);
 		kernel_read(PMO_FILE_PTR, primary, PAGE_SIZE, &primary_pos);
 	}
+
         sg_init_one(&sg_primary, primary, PAGE_SIZE);
         sg_init_one(&sg_shadow, shadow, PAGE_SIZE);
 
@@ -151,6 +152,7 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
                         local_iv);
         crypto_skcipher_decrypt(req);
         wait_for_completion(&wait);
+
 
         pmo_sync(shadow, PAGE_SIZE);
 
@@ -162,8 +164,6 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
 		kernel_write(PMO_FILE_PTR, primary, PAGE_SIZE, &primary_pos);
 	}
         skcipher_request_free(req);
-	if (PMO_IV_IS_ENABLED())
-	        handle_pmo_hash_identical(vpma, shadow, offset/PAGE_SIZE);
         pmo_barrier();
 
         return;

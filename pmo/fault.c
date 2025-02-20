@@ -221,7 +221,7 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 	PMO_PAGE_LOCK(vpma, pagenum);
 	/* This has to be behind the lock because it's possible that 
 	 * multiple threads might be servicing the same fault otherwise! */
-	
+
 	if (PMO_PRED_IS_ENABLED() && vpma->working_data[pagenum].phys_addr == 0) 
 		pmo_init_pred_working_data(vpma, pagenum);
 
@@ -292,6 +292,12 @@ handle_page_destroyed:
 	
 
 out2:
+
+	/* Check whether hash matches stored hash */
+	if (PMO_IV_IS_ENABLED())
+	        handle_pmo_hash_identical(vpma, vpma->shadow + pagenum * PAGE_SIZE,
+				pagenum);
+
 	pmo_stats_stop_fault_time(mm->pmo_stats, tick, tock);
 	PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);
 	//up_write(&vpma->pm_sem);

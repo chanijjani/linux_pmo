@@ -1,0 +1,14 @@
+#obj-$(CONFIG_PMO_USE_PERPAGE_ENCRYPTION) += perpage/
+obj-$(CONFIG_PMO_NONBLOCKING) += nonblocking/
+#obj-$(CONFIG_PMO_USE_PERPAGE_ENCRYPTION_TOGETHER) += perpage/
+obj-$(CONFIG_PMO_HANDLE_ABEND) += exit.o
+obj-$(CONFIG_PMO_THRESHOLD_PREDICTION) += prediction/
+obj-$(CONFIG_PMO_NBIT_PREDICTION) += prediction/
+obj-$(CONFIG_PMO_NO_PREDICTION) += noprediction.o
+obj-$(CONFIG_PMO_USE_COUNT_PREDICTION) += count.o
+obj-$(CONFIG_PMO_TRACK_EXPOSED_PAGES) += coverage.o
+obj-$(CONFIG_PMO_USE_ALLOC) += alloc.o
+obj-$(CONFIG_PMO_NO_PAGEWALK) += nopagewalk.o
+obj-$(CONFIG_PMO_PAGEWALK) += pagewalk.o
+obj-$(CONFIG_PMO_STATS_REPORTING) += stats.o
+obj-y += access.o block.o creation.o dax.o entry.o fault.o init.o hashing.o recovery.o sync.o vpma.o settings.o crypto.o nocrypto.o markov.o stride.o perpage/ whole/

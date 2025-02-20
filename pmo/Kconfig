@@ -1,0 +1,127 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+menu "PMO options"
+
+config PMO_NONBLOCKING
+	bool "Enable so that detach are non-blocking"
+	default y
+	help
+	 This option makes detach non-blocking
+
+choice 
+	prompt "PMO psync design"
+	config PMO_PAGEWALK
+		bool "Enable PMO Pagewalk"
+		help
+		 This option enables the PMO pagewalk.
+
+	config PMO_NO_PAGEWALK
+		bool "Disable PMO Pagewalk"
+		help 
+		 This option disables PMO pagewalk; instead, use a linked-list that
+		 adds the addresses and PTEs of all faulted pages. This is useful
+		 with predictive encryption, and is also a (likely) optimization
+		 compared to the previous design.
+
+endchoice
+	
+choice
+
+	prompt "PMO Handling type" 
+
+
+	config PMO_DROP_SHADOW_AT_DETACH
+		bool "Drop shadow at detach"
+		help
+		 This option destroys the PMO shadow pages at detach.
+
+	config PMO_PARANOID_MODE
+		bool "Enable Paranoid Mode for PMO system"
+		help
+		 This option destroys the PMO shadow pages at psync,
+		 requiring the kernel to always copy back faulted pages
+		 into the shadow. This hurts performance, but improves
+		 security in case of a crash.
+		
+endchoice
+
+choice 
+	prompt "PMO Prediction type"
+
+	config PMO_NO_PREDICTION
+		bool "No prediction"
+		help
+		 This option disables PMO prediction.
+
+	config PMO_THRESHOLD_PREDICTION
+		depends on PMO_PARANOID_MODE
+		bool "threshold prediction"
+		help
+		 This option enables threshold prediction.
+
+	config PMO_NBIT_PREDICTION
+		depends on PMO_PARANOID_MODE
+		bool "nbit prediction"
+		help
+		 This option enables nbit prediction.
+endchoice
+
+
+config PMO_THRESHOLD
+	depends on PMO_PARANOID_MODE
+	int "PMO threshold to decrypt/encrypt"
+	help
+	 This option specifies the appropriate threshold to decrypt 
+	 a PMO (nbit) or encrypt one (threshold)
+
+config PMO_MAX_STATES
+	depends on PMO_PARANOID_MODE
+	int "PMO max states"
+	help
+	 The states are the number of transitions or maximum possible value
+
+config PMO_PREDICT_INIT_STATE
+	depends on PMO_PARANOID_MODE
+	int "PMO Initial prediction state"
+	help 
+	 The initial state the PMO is set at initialization
+
+config PMO_TRACK_EXPOSED_PAGES
+	depends on PMO_USE_ENCRYPTION
+	bool "Track how many pages are in cleartext form"
+	help
+	 This option tracks how many and which pages are in cleartext form.
+	 When a process using PMOs dies, statistics regarding this are dumped
+	 into the kernel buffer. 
+
+
+config PMO_HANDLE_ABEND
+	bool "Enable ABEND handling"
+	depends on PMO_USE_ENCRYPTION
+	default n
+	help
+	 This option allows the kernel to automatically reencrypt pages after 
+	 an abnormal termination such as from SIGBUS or SIGSEGV. This allows
+	 for simpler crash-recovery designs.
+
+config PMO_HANDLE_PANIC
+	bool "Enable PANIC handling"
+	depends on PMO_USE_ENCRYPTION
+	default n
+	help
+	 This option allows the kernel to attempt to reencrypt pages before a
+	 kernel panic completes. Since a panicking kernel is inherently 
+	 unstable, this design cannot ensure crash-consistency and thus is
+	 dangerous. An alternative design may be to introduce a crash kernel
+	 handler that invokes this code.
+
+config PMO_STATS_REPORTING
+	bool "Enable statistics reporting for PMO system"
+	default n
+	help
+	 This option will cause the kernel to print statistics such
+	 as the number of pages that were processed by psync. This 
+	 may significantly impact performance, and so should not be
+	 enabled except when debugging.
+
+endmenu

@@ -24,7 +24,7 @@ choice
 		 compared to the previous design.
 
 endchoice
-	
+
 choice
 
 	prompt "PMO Handling type" 

@@ -419,3 +419,6 @@
 # x64 PMO syscalls -- Derrick Greenspan
 548     64      attach                  sys_attach
 549     64      psync                   sys_psync
+
+# x64 PMO syscalls -- Chanhee Lee
+550     64      verify                  sys_verify

@@ -17,6 +17,7 @@
 #include <linux/libnvdimm.h>
 #include <linux/perf_event.h>
 #include <linux/hugetlb.h>
+#include <linux/ftrace.h>
 #include <asm/tlbflush.h>
 #include <crypto/skcipher.h>
 #include "../mm/internal.h"
@@ -118,23 +119,23 @@ void pmo_sync_pages(struct vpma_area_struct *vpma, size_t starting_vma_address, 
 	/* Step 2: Persist and optionally encrypt or writeback the pages found
 	 * to be dirty. */
 	mutex_lock(&vpma->page_mutex);
-
+	printk("dirty_ll: %d,  update_checksum: %d,  PMO_WHOLE_IS_ENABLED(): %d,  PMO_IV_IS_ENABLED(): %d\n",
+			dirty_ll, update_checksum, PMO_WHOLE_IS_ENABLED(), PMO_IV_IS_ENABLED());
 
 	if(dirty_ll)
 		memcpy_dirtypages(&dirty_ll, vpma);
 
-        if(update_checksum && PMO_WHOLE_IS_ENABLED() && PMO_IV_IS_ENABLED()) {
+	if(update_checksum && PMO_WHOLE_IS_ENABLED() && PMO_IV_IS_ENABLED()) {
 		pmo_stats_start_psynctime_iv(current->mm->pmo_stats);
 		psync_start = ktime_get_ns();
                 get_sha256_hash(sha256hash, vpma->primary, size);
                 assign_sha256_to_pmo_entry(vpma->pmo_ptr, sha256hash);
                 pmo_barrier();
 		psync_end = ktime_get_ns();
+		printk("psync start: %lu, end: %lu\n", psync_start, psync_end);
 		atomic_add(psync_end - psync_start, &current->mm->pmo_stats.psynctime_iv);
 		pmo_stats_stop_psynctime_iv(current->mm->pmo_stats);
-        }
-
-
+	}
 
 	if(IS_ENABLED(CONFIG_PMO_PARANOID_MODE)) {
 		pmo_destroy_shadow(vpma,vpma->faulted_pages_ll, 0);

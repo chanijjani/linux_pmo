@@ -133,7 +133,11 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
         struct skcipher_request *req = skcipher_request_alloc(tfm, GFP_KERNEL);
         struct scatterlist sg_primary, sg_shadow;
         char local_iv[16];
+		__maybe_unused struct mm_struct *mm = current->mm;
+
         DECLARE_COMPLETION(wait);
+
+		pmo_stats_start_psynctime_encrypt(mm->pmo_stats);
 
         memcpy(local_iv, vpma->crypto.pmo_iv, 16);
 
@@ -165,6 +169,8 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
 	}
         skcipher_request_free(req);
         pmo_barrier();
+		
+		pmo_stats_stop_psynctime_encrypt(mm->pmo_stats);
 
         return;
 }

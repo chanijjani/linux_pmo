@@ -10,10 +10,14 @@ void pmo_dump_stats(struct pmo_stats_struct stats)
 			stats.attachtime_iv, stats.attachtime_other - (stats.attachtime_wait + (stats.attachtime_decrypt - stats.attachtime_iv) \
 			       	+ stats.attachtime_memcpy + stats.attachtime_iv));
 	printk("Detach: %lld\n", stats.detachtime);
-	printk("Psync IV: %lld, Psync Other: %lld, Psync Encrypt: %lld\n",
-			atomic_read(&stats.psynctime_iv), stats.psynctime_other - stats.psynctime_encrypt - atomic_read(&stats.psynctime_iv),
-		       	stats.psynctime_encrypt);
-
+	printk("Psync Total: %lld, Psync IV: %lld, Psync Encrypt: %lld, Psync Other: %lld\n",
+		stats.psynctime_other, atomic_read(&stats.psynctime_iv),
+		stats.psynctime_encrypt, stats.psynctime_other - stats.psynctime_encrypt - atomic_read(&stats.psynctime_iv));
+	printk("Fault time: %lld\n\n", atomic_read(&stats.faulttime));
+	printk("Total pages touched: %lld\n", stats.pages_touched);
+	printk("Total pages attached: %lld\n", stats.total_pages);
+	printk("Total attach waits: %lld\n", stats.attach_waits);
+	printk("Total waiting time: %lld\n", stats.waiting_time);
 	printk("PMO createtime: %lld\n", stats.createtime);
 
 	printk("Total pages dirtied: %lld\ntotal possible pages that could have been touched: %lld\n",

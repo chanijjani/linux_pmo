@@ -77,11 +77,14 @@ void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
                 shadow_sha_offset =
                         pmo_address_to_sha_offset(vpma->phys_shadow) +
                         page_offset;
+        __maybe_unused struct mm_struct *mm = current->mm;
 
         /* Get the page hash from data */
 
 	/* Why was this called? */
 	WARN_ON(!PMO_IV_IS_ENABLED());
+
+        pmo_stats_start_psynctime_iv(mm->pmo_stats);
 
         pmo_get_page_hash(sha256hash, _data);
 
@@ -108,6 +111,9 @@ void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
         else
                 memcpy_flushcache(OFFSET_TO_SHA(shadow_sha_offset), sha256hash,
                                 32);
+
+        pmo_stats_stop_psynctime_iv(mm->pmo_stats);
+
         return;
 }
 

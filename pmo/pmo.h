@@ -40,7 +40,7 @@
 
 #define MAX_NODES 16777215
 #define DAX_NAME "dax0.0"
-#define NVME_NAME "/dev/nvme1n1"
+#define NVME_NAME "/dev/nvme0n1"
 #define DISABLE_LOCKING 1
 
 /* Macros */

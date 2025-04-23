@@ -212,6 +212,14 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 
 	__maybe_unused struct mm_struct *mm = current->mm;
 	__maybe_unused unsigned long long int tick, tock;
+
+	// printk("PMO_BLOCK_IS_ENABLED() = %d, "
+	// 	"PMO_NOPRED_IS_ENABLED() = %d, PMO_DRAM_AS_BUFFER_IS_ENABLED() = %d, "
+	// 	"(PMO_PRED_IS_ENABLED() && !PMO_TEST_AND_SET_IS_HANDLED) = %d\n",
+	// 	PMO_BLOCK_IS_ENABLED(), PMO_NOPRED_IS_ENABLED(),
+	// 	PMO_DRAM_AS_BUFFER_IS_ENABLED(), (PMO_PRED_IS_ENABLED() &&
+	// 				 !PMO_TEST_AND_SET_IS_HANDLED(vpma, pagenum)));
+
 	/* Page is handled, but it's not timely */
 	if ( PMO_PRED_IS_ENABLED() && !PMO_TEST_PAGE_IS_TIMELY(vpma, pagenum) 
 			&& PMO_TEST_IS_HANDLED(vpma, pagenum) &&
@@ -294,6 +302,8 @@ handle_page_destroyed:
 out2:
 
 	/* Check whether hash matches stored hash */
+	// printk("PMO_IV_IS_ENABLED(): %d, PMO_WHOLE_IS_ENABLED(): %d\n",
+	// 		PMO_IV_IS_ENABLED(), PMO_WHOLE_IS_ENABLED());
 	if (PMO_IV_IS_ENABLED())
 	        handle_pmo_hash_identical(vpma, vpma->shadow + pagenum * PAGE_SIZE,
 				pagenum);

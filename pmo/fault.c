@@ -25,7 +25,7 @@
 void pmo_debug_print_faulting_page(unsigned long int phys_addr, unsigned long int virt_addr)
 {
 
-	printk ("Phys:%lld\tVirt:%lld\n", phys_addr, virt_addr);
+	printk ("Phys:%ld\tVirt:%ld\n", phys_addr, virt_addr);
 	//atomic_inc(&vpma->fault_order);
 	return;
 }
@@ -175,7 +175,7 @@ void pmo_insert_faulted_pages(struct vpma_area_struct *vpma,
 void _pmo_handle_waiting_for_page(struct vpma_area_struct *vpma)
 {
 	struct mm_struct *mm = vpma->current_mm;
-	atomic_inc(&mm->pmo_stats.total_waits);
+	atomic64_inc(&mm->pmo_stats.total_waits);
 
 	return;
 }
@@ -222,6 +222,11 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 	/* This has to be behind the lock because it's possible that 
 	 * multiple threads might be servicing the same fault otherwise! */
 
+	pmo_stats_start_fault_time(&mm->pmo_stats, &tick);
+	printk("PMO: Page fault at %lX, pagenum %ld, offset %ld\n",
+			address, pagenum, offset);
+	printk("[fault_start_time: %llu]\n", tick);
+
 	if (PMO_PRED_IS_ENABLED() && vpma->working_data[pagenum].phys_addr == 0) 
 		pmo_init_pred_working_data(vpma, pagenum);
 
@@ -237,7 +242,6 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 		goto handle_pagefault_failure;
 	}
 	else { 
-		pmo_stats_start_fault_time(mm->pmo_stats, tick);
 		if(not_mapped) {
 		 	kern_address = (PMO_DRAM_IS_ENABLED() && !PMO_DRAM_AS_BUFFER_IS_ENABLED()) ?
 			      vpma->working_data[pagenum].phys_addr : 
@@ -321,7 +325,8 @@ out2:
 				pagenum);
 	}
 
-	pmo_stats_stop_fault_time(mm->pmo_stats, tick, tock);
+	pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
+	printk("[fault_start_time: %llu,  fault_end_time: %llu]\n", tick, tock);
 	PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);
 
 	/* Return the entry in the list if it's not mapped and we have not
@@ -330,7 +335,7 @@ out2:
 		temp_dirtypage : NULL;
 
 	handle_pagefault_failure:
-		pmo_stats_stop_fault_time(mm->pmo_stats, tick, tock);
+		pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
 		printk(KERN_WARNING "PF failed at %lX. Will segfault!\n",
 				address);
 		PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);

@@ -1,8 +1,8 @@
 /***************************************************************************
- * Copyright (C) 2021-2023 Derrick Greenspan and the University of
- *Central * Florida (UCF). *
+ * Copyright (C) 2021-2023 Derrick Greenspan and 
+ * the University of Central Florida (UCF).
  ***************************************************************************
- * Synchronization and handling. 				   	   *
+ * Synchronization and handling.
  ***************************************************************************/
 
 #include "../mm/internal.h"
@@ -113,7 +113,8 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
      * in, or dirty-faulted in, rather than here. Then, the persist
      * stage would consist of walking through (but not building) the
      * linked list. */
-    pmo_stats_start_psynctime_other(mm->pmo_stats);
+    pmo_stats_start_psynctime_other(&mm->pmo_stats);
+    printk("[PSYNC-Total_start: %lld]\n", mm->pmo_stats.psynctime_other_start);
     mutex_lock(&vpma->page_mutex);
     IS_ENABLED(CONFIG_PMO_PAGEWALK)
         ? pmo_persist(vpma, starting_vma_address, &dirty_ll)
@@ -130,13 +131,16 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
     if (update_checksum && PMO_WHOLE_IS_ENABLED() &&
         PMO_IV_IS_ENABLED())
     {
-        pmo_stats_start_psynctime_iv(current->mm->pmo_stats);
+        pmo_stats_start_psynctime_iv(&current->mm->pmo_stats);
+        printk("[PSYNC-IV_start: %lld]\n", mm->pmo_stats.psynctime_iv_start);
         get_sha256_hash(sha256hash, vpma->primary, size);
         assign_sha256_to_pmo_entry(vpma->pmo_ptr, sha256hash);
         pmo_barrier();
-        atomic_add(psync_end - psync_start,
-                   &current->mm->pmo_stats.psynctime_iv);
-        pmo_stats_stop_psynctime_iv(current->mm->pmo_stats);
+        // atomic_add(psync_end - psync_start,
+        //            &current->mm->pmo_stats.psynctime_iv);
+        pmo_stats_stop_psynctime_iv(&current->mm->pmo_stats);
+        printk("[PSYNC-IV_start: %lld, PSYNC-IV_end: %lld]\n",
+            mm->pmo_stats.psynctime_iv_start, mm->pmo_stats.psynctime_iv);
     }
 
     if (IS_ENABLED(CONFIG_PMO_PARANOID_MODE))
@@ -146,7 +150,9 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
 
     kvfree(dirty_ll);
     mutex_unlock(&vpma->page_mutex);
-    pmo_stats_stop_psynctime_other(mm->pmo_stats);
+    pmo_stats_stop_psynctime_other(&mm->pmo_stats);
+    printk("[PSYNC-Total_start: %lld, PSYNC-Total_end: %lld]\n",
+        mm->pmo_stats.psynctime_other_start, mm->pmo_stats.psynctime_other);
 
     return;
 }
@@ -221,9 +227,13 @@ void _pmo_block_handle_sync(struct vpma_area_struct *vpma,
 
 void print_hash(char *hash)
 {
-    printk("%lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX"
-           " %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX "
-           "%lX %lX %lX",
+    // printk("%lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX"
+    //        " %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX %lX "
+    //        "%lX %lX %lX",
+    printk("%x %x %x %x %x %x %x %x %x %x "
+            "%x %x %x %x %x %x %x %x %x %x "
+            "%x %x %x %x %x %x %x %x %x %x "
+            "%x",
            hash[0], hash[1], hash[2], hash[3], hash[4], hash[5],
            hash[6], hash[7], hash[8], hash[9], hash[10], hash[11],
            hash[12], hash[13], hash[14], hash[15], hash[16], hash[17],
@@ -290,7 +300,9 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
     WARN_ON(pmo_test_and_lock(3, pmo));
 
     /* FIXME: How can the page be destroyed if it's dirty...? */
-    pmo_stats_start_psynctime_encrypt(mm->pmo_stats);
+    pmo_stats_start_psynctime_encrypt(&mm->pmo_stats);
+    printk("[PSYNC-encrypt_start: %lld]\n", mm->pmo_stats.psynctime_encrypt_start);
+
     list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list)
     {
         if (!PMO_PAGE_IS_DESTROYED(vpma, cursor->pagenum))
@@ -325,7 +337,8 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
         kfree(cursor);
     }
 
-    pmo_stats_stop_psynctime_encrypt(mm->pmo_stats);
+    pmo_stats_stop_psynctime_encrypt(&mm->pmo_stats);
+    printk("[PSYNC-encrypt_end: %lld]\n", mm->pmo_stats.psynctime_encrypt);
 
     pmo_psync_wait(vpma);
 

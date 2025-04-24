@@ -345,13 +345,13 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 
 /* Start psync time stuff */
 #define pmo_stats_start_psynctime_other(x) \
-	x.psynctime_other_start = ktime_get_ns()
+	(x)->psynctime_other_start = ktime_get_ns()
 
 #define pmo_stats_start_psynctime_iv(x) \
-	x.psynctime_iv_start = ktime_get_ns()
+	(x)->psynctime_iv_start = ktime_get_ns()
 
 #define pmo_stats_start_psynctime_encrypt(x) \
-	x.psynctime_encrypt_start = ktime_get_ns()
+	(x)->psynctime_encrypt_start = ktime_get_ns()
 
 /*
 #define pmo_stats_start_psync_time_memcpy(x) \
@@ -361,13 +361,15 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 
 /* Stop psync time stuff */
 #define pmo_stats_stop_psynctime_other(x) \
-	x.psynctime_other += ktime_get_ns() - x.psynctime_other_start
+	(x)->psynctime_other += ktime_get_ns() - (x)->psynctime_other_start
 
+// #define pmo_stats_stop_psynctime_iv(x) \
+// 	atomic64_add((ktime_get_ns() - atomic_read(&x.psynctime_iv)), &x.psynctime_iv);
 #define pmo_stats_stop_psynctime_iv(x) \
-	atomic_add((ktime_get_ns() - atomic_read(&x.psynctime_iv)), &x.psynctime_iv);
+	atomic64_add((ktime_get_ns() - (x)->psynctime_iv_start), &(x)->psynctime_iv);
 
 #define pmo_stats_stop_psynctime_encrypt(x) \
-	x.psynctime_encrypt += ktime_get_ns() - x.psynctime_encrypt_start
+	(x)->psynctime_encrypt += ktime_get_ns() - (x)->psynctime_encrypt_start
 
 /*
  * #define pmo_stats_stop_psync_time_memcpy(x) \
@@ -380,86 +382,85 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 
 /* Start attach time stuff */
 #define pmo_stats_start_attachtime_other(x) \
-	x.attachtime_other_start = ktime_get_ns()
+	(x)->attachtime_other_start = ktime_get_ns()
 
 #define pmo_stats_start_attachtime_wait(x) \
-	x.attachtime_wait_start = ktime_get_ns()
+	(x)->attachtime_wait_start = ktime_get_ns()
 
 #define pmo_stats_start_attachtime_iv(x) \
-	x.attachtime_iv_start = ktime_get_ns()
+	(x)->attachtime_iv_start = ktime_get_ns()
 
 #define pmo_stats_start_attachtime_decrypt(x) \
-	x.attachtime_decrypt_start = ktime_get_ns()
+	(x)->attachtime_decrypt_start = ktime_get_ns()
 
 #define pmo_stats_start_attachtime_memcpy(x) \
-	x.attachtime_memcpy_start = ktime_get_ns()
+	(x)->attachtime_memcpy_start = ktime_get_ns()
 
 /* Stop attach time stuff */
 
 #define pmo_stats_stop_attachtime_other(x) { \
-	x.attachtime_other += ktime_get_ns() - x.attachtime_other_start; \
-	x.attachtime_other_start = 0; }
+	(x)->attachtime_other += ktime_get_ns() - (x)->attachtime_other_start; \
+	(x)->attachtime_other_start = 0; }
 
 #define pmo_stats_stop_attachtime_wait(x) { \
-	x.attachtime_wait += ktime_get_ns() - x.attachtime_wait_start; \
-	x.attachtime_wait_start = 0; }
+	(x)->attachtime_wait += ktime_get_ns() - (x)->attachtime_wait_start; \
+	(x)->attachtime_wait_start = 0; }
 
 #define pmo_stats_stop_attachtime_iv(x) { \
-	x.attachtime_iv += ktime_get_ns() - x.attachtime_iv_start; \
-	x.attachtime_iv_start = 0; }
+	(x)->attachtime_iv += ktime_get_ns() - (x)->attachtime_iv_start; \
+	(x)->attachtime_iv_start = 0; }
 
 #define pmo_stats_stop_attachtime_decrypt(x) { \
-	x.attachtime_decrypt += ktime_get_ns() - x.attachtime_decrypt_start; \
-	x.attachtime_decrypt_start = 0; }
+	(x)->attachtime_decrypt += ktime_get_ns() - (x)->attachtime_decrypt_start; \
+	(x)->attachtime_decrypt_start = 0; }
 
 #define pmo_stats_stop_attachtime_memcpy(x) { \
-	x.attachtime_memcpy += ktime_get_ns() - x.attachtime_memcpy_start; \
-	x.attachtime_memcpy_start = 0; }
+	(x)->attachtime_memcpy += ktime_get_ns() - (x)->attachtime_memcpy_start; \
+	(x)->attachtime_memcpy_start = 0; }
 /*** END ATTACH TIME ***/
 
 
 
 /*** CREATE TIME ***/
 #define pmo_stats_start_create_time(x) \
-	x.createtime_start = ktime_get_ns()
+	(x)->createtime_start = ktime_get_ns()
 
 #define pmo_stats_stop_create_time(x) \
-	x.createtime += ktime_get_ns() - x.createtime_start
+	(x)->createtime += ktime_get_ns() - (x)->createtime_start
 
 #define pmo_creation_time_handling_start(x) \
-	x.creationtimehandling_start = ktime_get_ns()
+	(x)->creationtimehandling_start = ktime_get_ns()
 
 #define pmo_creation_time_handling_stop(x) \
-	x.creationtimehandling += ktime_get_ns() - x.creationtimehandling_start
+	(x)->creationtimehandling += ktime_get_ns() - (x)->creationtimehandling_start
 
 /*** END CREATE TIME ***/
 
 
 #define pmo_stats_start_detach_time(x) \
-	x.detachtime_start = ktime_get_ns()
+	(x)->detachtime_start = ktime_get_ns()
 
 #define pmo_stats_stop_detach_time(x) \
-	x.detachtime += ktime_get_ns() - x.detachtime_start
-
+	(x)->detachtime += ktime_get_ns() - (x)->detachtime_start
 
 #define pmo_stats_start_fault_time(x, tick) \
-	tick = ktime_get_ns()
+	*tick = ktime_get_ns()
 
 #define pmo_stats_stop_fault_time(x, tick, tock) \
-	tock = ktime_get_ns(); \
-	atomic_add(tock - tick, &x.faulttime)
+	*tock = ktime_get_ns(); \
+	atomic64_add(*tock - *tick, &(x)->faulttime)
 
 #define pmo_init_timing_info(x) \
-	x.psynctime_other_start = 0; \
-	x.psynctime_iv_start = 0; \
-	x.psynctime_encrypt_start = 0; \
-	x.attachtime_wait_start = 0; \
-	x.attachtime_other_start = 0; \
-	x.attachtime_iv_start = 0; \
-	x.attachtime_memcpy_start = 0; \
-	x.detachtime_start = 0; \
-	x.attachtime_wait = 0; x.attachtime_other = 0; x.attachtime_iv = 0; \
-	atomic_set(0, &x.psynctime_iv); \
+	(x)->psynctime_other_start = 0; \
+	(x)->psynctime_iv_start = 0; \
+	(x)->psynctime_encrypt_start = 0; \
+	(x)->attachtime_wait_start = 0; \
+	(x)->attachtime_other_start = 0; \
+	(x)->attachtime_iv_start = 0; \
+	(x)->attachtime_memcpy_start = 0; \
+	(x)->detachtime_start = 0; \
+	(x)->attachtime_wait = 0; (x)->attachtime_other = 0; (x)->attachtime_iv = 0; \
+	atomic_set(0, &(x)->psynctime_iv); \
 
 	/*pages_touched = 0; x.total_pages = 0; x.attach_waits = 0; x.waiting_time = 0*/
 

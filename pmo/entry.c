@@ -90,6 +90,7 @@ SYSCALL_DEFINE5(attach, char __user *, path, unsigned, access_type,
 		pmo_stats_start_create_time(mm->pmo_stats);
 		do_create(name, size_or_flags, key_buf);
 		pmo_stats_stop_create_time(mm->pmo_stats);
+
 		printk("PMO_WHOLE_IS_ENABLED(): %d,  PMO_IV_IS_ENABLED(): %d\n",
 			PMO_WHOLE_IS_ENABLED(), PMO_IV_IS_ENABLED());
 		return 0;

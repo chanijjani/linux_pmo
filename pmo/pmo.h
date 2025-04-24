@@ -353,6 +353,9 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 #define pmo_stats_start_psynctime_encrypt(x) \
 	(x)->psynctime_encrypt_start = ktime_get_ns()
 
+#define pmo_stats_start_page_encrypt(x) \
+	(x)->page_encrypt_start = ktime_get_ns()
+
 /*
 #define pmo_stats_start_psync_time_memcpy(x) \
 	x.psynctime_memcpy_start = ktime_get_ns()
@@ -370,6 +373,9 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 
 #define pmo_stats_stop_psynctime_encrypt(x) \
 	(x)->psynctime_encrypt += ktime_get_ns() - (x)->psynctime_encrypt_start
+
+#define pmo_stats_stop_page_encrypt(x) \
+	(x)->page_encrypt += ktime_get_ns() - (x)->page_encrypt_start
 
 /*
  * #define pmo_stats_stop_psync_time_memcpy(x) \

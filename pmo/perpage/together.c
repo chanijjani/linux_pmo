@@ -137,8 +137,8 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
 
         DECLARE_COMPLETION(wait);
 
-		pmo_stats_start_psynctime_encrypt(&mm->pmo_stats);
-		printk("[Page-encrypt_start: %lld]\n", mm->pmo_stats.psynctime_encrypt_start);
+		pmo_stats_start_page_encrypt(&mm->pmo_stats);
+		printk("[Page-encrypt_start: %lld]\n", mm->pmo_stats.page_encrypt_start);
 
         memcpy(local_iv, vpma->crypto.pmo_iv, 16);
 
@@ -171,8 +171,8 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
         skcipher_request_free(req);
         pmo_barrier();
 		
-		pmo_stats_stop_psynctime_encrypt(&mm->pmo_stats);
-		printk("[Page-encrypt_end: %lld]\n", mm->pmo_stats.psynctime_encrypt);
+		pmo_stats_stop_page_encrypt(&mm->pmo_stats);
+		printk("[Page-encrypt_end: %lld]\n", mm->pmo_stats.page_encrypt);
 
         return;
 }

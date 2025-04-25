@@ -412,6 +412,10 @@ struct pmo_stats_struct {
                 psynctime_iv_start,
                 psynctime_encrypt_start,
 
+				/* PAGE */
+                page_encrypt_start,
+				page_iv_start,
+
                 /* ATTACH */
                 attachtime_wait_start,
                 attachtime_other_start,
@@ -427,9 +431,9 @@ struct pmo_stats_struct {
                 creationtimehandling_start,
 
                 /* TIME */
-                psynctime_other, psynctime_encrypt,
+                psynctime_other, psynctime_encrypt, page_encrypt,
                 attachtime_wait, attachtime_iv, attachtime_other,
-		attachtime_decrypt, attachtime_memcpy,
+				attachtime_decrypt, attachtime_memcpy,
                 detachtime,createtime,
                 creationtimehandling,
                 pages_touched, total_pages,
@@ -439,7 +443,7 @@ struct pmo_stats_struct {
                 all_pages, pages_dirtied;
 
 
-        atomic_t
+        atomic64_t
                 accurate_predictions,
                 mispredict_no_faults,
                 mispredict_faults,
@@ -447,6 +451,7 @@ struct pmo_stats_struct {
                 total_waits,
                 faulttime,
                 psynctime_iv,
+				page_iv,
                 mispredict;
 };
 

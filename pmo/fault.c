@@ -222,10 +222,11 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 	/* This has to be behind the lock because it's possible that 
 	 * multiple threads might be servicing the same fault otherwise! */
 
-	pmo_stats_start_fault_time(&mm->pmo_stats, &tick);
-	printk("PMO: Page fault at %lX, pagenum %ld, offset %ld\n",
-			address, pagenum, offset);
-	printk("[fault_start_time: %llu]\n", tick);
+	// pmo_stats_start_fault_time(&mm->pmo_stats, &tick);
+	trace_printk("pmo_stats_start_fault_time: mm=%p\n", mm);
+	// printk("PMO: Page fault at %lX, pagenum %ld, offset %ld\n",
+	// 		address, pagenum, offset);
+	// printk("[fault_start_time: %llu]\n", tick);
 
 	if (PMO_PRED_IS_ENABLED() && vpma->working_data[pagenum].phys_addr == 0) 
 		pmo_init_pred_working_data(vpma, pagenum);
@@ -325,8 +326,10 @@ out2:
 				pagenum);
 	}
 
-	pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
-	printk("[fault_start_time: %llu,  fault_end_time: %llu]\n", tick, tock);
+	// pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
+	trace_printk("pmo_stats_stop_fault_time: mm=%p, PMO_IV_IS_ENABLED() = %d\n",
+		mm, PMO_IV_IS_ENABLED());
+	// printk("[fault_start_time: %llu,  fault_end_time: %llu]\n", tick, tock);
 	PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);
 
 	/* Return the entry in the list if it's not mapped and we have not
@@ -335,7 +338,8 @@ out2:
 		temp_dirtypage : NULL;
 
 	handle_pagefault_failure:
-		pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
+		// pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
+		trace_printk("pmo_stats_stop_fault_time: mm=%p\n", mm);
 		printk(KERN_WARNING "PF failed at %lX. Will segfault!\n",
 				address);
 		PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);

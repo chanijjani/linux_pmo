@@ -25,6 +25,7 @@
 #include <linux/kfifo.h>
 #include <linux/libnvdimm.h>
 #include <linux/scatterlist.h>
+#include <linux/tracepoint.h>
 #include <crypto/hash.h>
 #include <crypto/skcipher.h>
 #include "pagewalk.h"
@@ -345,10 +346,19 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 
 /* Start psync time stuff */
 #define pmo_stats_start_psynctime_other(x) \
-	(x)->psynctime_other_start = ktime_get_ns()
+	do { \
+		trace_printk("pmo_stats_start_psynctime_other: mm=%p\n", x); \
+	} while (0)
+	// (x)->psynctime_other_start = ktime_get_ns()
 
 #define pmo_stats_start_psynctime_iv(x) \
-	(x)->psynctime_iv_start = ktime_get_ns()
+	do { \
+		trace_printk("pmo_stats_start_psynctime_iv: mm=%p\n", x); \
+	} while (0)
+	// (x)->psynctime_iv_start = ktime_get_ns()
+
+#define pmo_stats_start_page_iv(x) \
+	(x)->page_iv_start = ktime_get_ns()
 
 #define pmo_stats_start_psynctime_encrypt(x) \
 	(x)->psynctime_encrypt_start = ktime_get_ns()
@@ -366,10 +376,11 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 #define pmo_stats_stop_psynctime_other(x) \
 	(x)->psynctime_other += ktime_get_ns() - (x)->psynctime_other_start
 
-// #define pmo_stats_stop_psynctime_iv(x) \
-// 	atomic64_add((ktime_get_ns() - atomic_read(&x.psynctime_iv)), &x.psynctime_iv);
 #define pmo_stats_stop_psynctime_iv(x) \
 	atomic64_add((ktime_get_ns() - (x)->psynctime_iv_start), &(x)->psynctime_iv);
+
+#define pmo_stats_stop_page_iv(x) \
+	atomic64_add((ktime_get_ns() - (x)->page_iv_start), &(x)->page_iv);
 
 #define pmo_stats_stop_psynctime_encrypt(x) \
 	(x)->psynctime_encrypt += ktime_get_ns() - (x)->psynctime_encrypt_start
@@ -459,7 +470,9 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 #define pmo_init_timing_info(x) \
 	(x)->psynctime_other_start = 0; \
 	(x)->psynctime_iv_start = 0; \
+	(x)->page_iv_start = 0; \
 	(x)->psynctime_encrypt_start = 0; \
+	(x)->page_encrypt_start = 0; \
 	(x)->attachtime_wait_start = 0; \
 	(x)->attachtime_other_start = 0; \
 	(x)->attachtime_iv_start = 0; \
@@ -467,6 +480,7 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 	(x)->detachtime_start = 0; \
 	(x)->attachtime_wait = 0; (x)->attachtime_other = 0; (x)->attachtime_iv = 0; \
 	atomic_set(0, &(x)->psynctime_iv); \
+	atomic_set(0, &(x)->page_iv); \
 
 	/*pages_touched = 0; x.total_pages = 0; x.attach_waits = 0; x.waiting_time = 0*/
 

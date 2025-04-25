@@ -446,7 +446,7 @@ static ssize_t pmo_depth_read(struct file *file, char __user *ubuf,
 		size_t count, loff_t *ppos)
 {
 	char depth[256];
-	snprintf(depth, 30, "%ld\n", PMO_GET_PREDICTION_DEPTH());
+	snprintf(depth, 30, "%d\n", PMO_GET_PREDICTION_DEPTH());
 
 	if (*ppos > 0 || count < 30)
 		return 0;
@@ -461,7 +461,7 @@ static ssize_t pmo_debug_read(struct file *file, char __user *ubuf,
 		size_t count, loff_t *ppos)
 {
 	char debug_state[256];
-	snprintf(debug_state, 30, "%ld\n", PMO_DEBUG_MODE_IS_ENABLED() ? 
+	snprintf(debug_state, 30, "%s\n", PMO_DEBUG_MODE_IS_ENABLED() ?
 			"Debug Enabled\n" : "Debug Disabled\n");
 
 	if (*ppos > 0 || count < 30)

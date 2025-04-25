@@ -106,7 +106,6 @@ SYSCALL_DEFINE5(attach, char __user *, path, unsigned, access_type,
 	address = (__u64) do_attach(pmo, access_type, 0, 0, key_buf, size_or_flags);
 	mmap_read_unlock(mm);
 
-
 	if(!address)
 		do_exit(SIGBUS);
 

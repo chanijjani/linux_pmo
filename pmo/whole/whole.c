@@ -32,6 +32,7 @@ void crypt_data(void * data, void *data_out, char *key, size_t size, char *iv, c
 	struct scatterlist sg_data;
 	void *crypted_data = data_out; //kvcalloc(sizeof(char), PAGE_ALIGN(size), GFP_KERNEL);
 	int err;
+	__maybe_unused struct mm_struct *mm = current->mm;
 	DECLARE_CRYPTO_WAIT(wait);
 	
 
@@ -73,7 +74,8 @@ void crypt_data(void * data, void *data_out, char *key, size_t size, char *iv, c
 
 
 	if(!encrypt && PMO_IV_IS_ENABLED()) {
-		pmo_stats_start_attachtime_iv(&current->mm->pmo_stats);
+		// pmo_stats_start_attachtime_iv(&current->mm->pmo_stats);
+		trace_printk("pmo_stats_start_attachtime_iv: mm=%p\n", mm);
 		get_sha256_hash(sha256hash, crypted_data, size);
 		if(memcmp(sha256hash, expected_sha256, 32)) {
 			hash_hit++;
@@ -89,7 +91,8 @@ void crypt_data(void * data, void *data_out, char *key, size_t size, char *iv, c
 			goto out;
 			*/
 		}
-		pmo_stats_stop_attachtime_iv(&current->mm->pmo_stats);
+		// pmo_stats_stop_attachtime_iv(&current->mm->pmo_stats);
+		trace_printk("pmo_stats_stop_attachtime_iv: mm=%p\n", mm);
 	}
 
 
@@ -139,6 +142,7 @@ void whole_enable_vpma_access(struct vpma_area_struct *vpma)
 	struct pmo_entry *pmo_ptr = vpma->pmo_ptr;
 	size_t size = pmo_ptr->size_in_pages * PAGE_SIZE;
 	char *key = vpma->crypto.enc_key;
+	__maybe_unused struct mm_struct *mm = current->mm;
 
 	/* PMO is to be created *
 	if(pmo_bit_is_set(6, pmo_ptr))
@@ -163,10 +167,12 @@ void whole_enable_vpma_access(struct vpma_area_struct *vpma)
 	*/
 	pmo_set_bit(2, pmo_ptr);
 
-	pmo_stats_start_attachtime_decrypt(&current->mm->pmo_stats);
+	// pmo_stats_start_attachtime_decrypt(&current->mm->pmo_stats);
+	trace_printk("pmo_stats_start_attachtime_decrypt: mm=%p\n", mm);
 	get_decrypted_data(vpma->primary, vpma->shadow, key, PAGE_ALIGN(size),
 			pmo_ptr->iv, pmo_ptr->sha256sum);
-	pmo_stats_stop_attachtime_decrypt(&current->mm->pmo_stats);
+	// pmo_stats_stop_attachtime_decrypt(&current->mm->pmo_stats);
+	trace_printk("pmo_stats_stop_attachtime_decrypt: mm=%p\n", mm);
 	
 //	pmo_barrier();
 
@@ -175,10 +181,12 @@ void whole_enable_vpma_access(struct vpma_area_struct *vpma)
 	/* Indicate primary is invalid -- but shadow is validly decrypted */
 	pmo_set_bit(3, pmo_ptr);
 
-	pmo_stats_start_attachtime_memcpy(&current->mm->pmo_stats);
+	// pmo_stats_start_attachtime_memcpy(&current->mm->pmo_stats);
+	trace_printk("pmo_stats_start_attachtime_memcpy: mm=%p\n", mm);
 	memcpy_flushcache(vpma->primary, vpma->shadow, PAGE_ALIGN(size));
 	pmo_barrier();
-	pmo_stats_stop_attachtime_memcpy(&current->mm->pmo_stats);
+	// pmo_stats_stop_attachtime_memcpy(&current->mm->pmo_stats);
+	trace_printk("pmo_stats_stop_attachtime_memcpy: mm=%p\n", mm);
 
 	return;
 }

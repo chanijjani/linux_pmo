@@ -65,7 +65,7 @@ char * _build_pmo_name(char *pmo_name, size_t size, size_t page_offset)
 	return name;
 }
 void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page_offset,
-		char * key)
+		char * key, unsigned char flags)
 {
 	struct mm_struct *mm = current->mm;
 	unsigned long long int address = pmo->pm_primary * PAGE_SIZE +
@@ -78,6 +78,7 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 	struct vpma_area_struct *vpma;
 	size_t length = (size == 0 ? pmo->size_in_pages * PAGE_SIZE : size);
 
+	printk("Current flags for PMO is %lX\n", flags);
 	
 	name = _build_pmo_name(pmo->name, size, page_offset);
 
@@ -116,27 +117,15 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 		vpma = create_vpma_for_pmo(address, length, pmo->name,
 				name, prot_type, key);
 		pmo_update_metadata(vpma);
-		/*
-	 	mmap_read_unlock(mm);
-		*/
 		down_write(&vpma->pm_sem);
-	}
-	else {
-		vpma->attached_size = length;
-		vpma->attached_offset = PAGE_SIZE * page_offset;
-		vpma->type = prot_type;
-		goto out;
+
+	  	/* Expand the total size of the mm_struct's virtual memory  */
+         	mm->total_vm += length >> PAGE_SHIFT;
 	}
 
           vpma->attached_size = length;
           vpma->attached_offset = PAGE_SIZE * page_offset;
-
-	  /* Expand the total size of the mm_struct's virtual memory  */
-	// mmap_read_lock(mm);
-         mm->total_vm += length >> PAGE_SHIFT;
-	// mmap_read_unlock(mm);
-
-out:
+	  vpma->flags = flags;
 	 if(enable_vpma_access(vpma, length, PAGE_SIZE * page_offset, prot_type, key)) {
 		 printk(KERN_WARNING "Enable VPMA access failed!\n");
 		pmo_stats_stop_attachtime_other(mm->pmo_stats);

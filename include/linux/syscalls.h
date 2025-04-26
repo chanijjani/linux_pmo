@@ -1390,6 +1390,7 @@ int __sys_setsockopt(int fd, int level, int optname, char __user *optval,
 		int optlen);
 
 /* PMO syscalls attach and psync -- Derrick added these */
-asmlinkage long sys_attach(const char *path, unsigned access_type, char *key);
+asmlinkage long sys_attach(const char *path, unsigned access_type, char *key,
+		unsigned flags);
 asmlinkage long sys_psync(__u64 pmo_hash, void *vma_range);
 #endif

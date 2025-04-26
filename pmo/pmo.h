@@ -245,7 +245,7 @@ struct vpma_area_struct {
 	struct mutex *lock_page;
 	atomic_t *destroyed, *prediction, fault_order;
 	/* PMO name */
-        char name[50];
+        char name[50], flags;
 };
 
 #ifdef CONFIG_PMO_NONBLOCKING
@@ -927,7 +927,7 @@ void block_verify_attach(struct pmo_entry *pmo, char prot_type,
 
 
 void *do_attach(struct pmo_entry *pmo, char prot_type, size_t size,
-		size_t page_offset, char *key);
+		size_t page_offset, char *key, unsigned char flags);
 int do_detach(struct mm_struct *mm, char *path);
 size_t do_get_size(struct mm_struct *mm, char *path);
 int get_boot_id(void);

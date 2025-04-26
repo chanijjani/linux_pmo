@@ -22,10 +22,12 @@
 struct proc_dir_entry *pmo_proc_entry, *pmo_dram_entry, *pmo_pred_entry, *pmo_depth_entry,
 		      *pmo_debug_entry, *pmo_access_entry, *pmo_emulate_cxl_entry = PMO_LOCAL;
 enum access_type pmo_access_mode = DAX;
-SYSCALL_DEFINE6(attach, char __user *, path, unsigned, access_type, char __user *, key,
-	       	__u64, size, __u64, offset, __u64 __user *, return_data)
+
+SYSCALL_DEFINE6(attach, char __user *, path, unsigned, access_type,
+		char __user *, key, __u64, size, unsigned, flags,
+		__u64 __user *, return_data)
 {
-	__u64 address, aligned_size, page_offset;
+	__u64 address;
         char path_buf[256],
 	     key_buf[256],
 	     name[256];
@@ -99,16 +101,8 @@ SYSCALL_DEFINE6(attach, char __user *, path, unsigned, access_type, char __user 
 		return -ENOENT;
 	}
 
-	/* If not page aligned, this is bad so dump to kernel log */
-	WARN(!PAGE_ALIGNED(offset), "Offset %ld ! page aligned!\n", (size_t) offset);
-
-	aligned_size = PAGE_ALIGN(size);
-	page_offset = offset / PAGE_SIZE;
-
-//	pmo_stats_start_attachtime(mm->pmo_stats);
 	mmap_read_lock(mm);
-	address = (__u64) do_attach(pmo, access_type, aligned_size,
-			page_offset, key_buf);
+	address = (__u64) do_attach(pmo, access_type, 0, 0, key_buf, flags);
 	mmap_read_unlock(mm);
 
 

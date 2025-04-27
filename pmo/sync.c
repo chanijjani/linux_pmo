@@ -194,13 +194,14 @@ inline void pmo_clear_dirty(pte_t *pte)
 
 inline void pmo_clear_write(pte_t *pte)
 {
-	*pte = pte_set_wrprotect(*pte);
+	*pte = pte_wrprotect(*pte);
 	return;
 }
 
 inline void pmo_clear_read(pte_t *pte)
 {
 	*pte = pte_set_flags(*pte, _PAGE_BIT_PROTNONE);
+	return;
 }
 
 void _pmo_block_handle_sync(struct vpma_area_struct *vpma,

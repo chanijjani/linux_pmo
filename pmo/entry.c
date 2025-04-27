@@ -23,8 +23,8 @@ struct proc_dir_entry *pmo_proc_entry, *pmo_dram_entry, *pmo_pred_entry, *pmo_de
 		      *pmo_debug_entry, *pmo_access_entry, *pmo_emulate_cxl_entry = PMO_LOCAL;
 enum access_type pmo_access_mode = DAX;
 
-SYSCALL_DEFINE6(attach, char __user *, path, unsigned, access_type,
-		char __user *, key, __u64, size, unsigned, flags,
+SYSCALL_DEFINE5(attach, char __user *, path, unsigned, access_type,
+		char __user *, key, __u64, size_or_flags,
 		__u64 __user *, return_data)
 {
 	__u64 address;
@@ -85,10 +85,10 @@ SYSCALL_DEFINE6(attach, char __user *, path, unsigned, access_type,
 	if(access_type == 'c' || access_type == 'C') {
 		/* Pass in the key which, along with the IV, will be forged to the
 		 * PMO. The PMO is initially empty. */
-		printk("Trying to create PMO %s of size %lld\n", name, size);
+		printk("Trying to create PMO %s of size %lld\n", name, size_or_flags);
 
 		pmo_stats_start_create_time(mm->pmo_stats);
-		do_create(name, size, key_buf);
+		do_create(name, size_or_flags, key_buf);
 		pmo_stats_stop_create_time(mm->pmo_stats);
 		printk("PMO_WHOLE_IS_ENABLED(): %d,  PMO_IV_IS_ENABLED(): %d\n",
 			PMO_WHOLE_IS_ENABLED(), PMO_IV_IS_ENABLED());
@@ -102,7 +102,7 @@ SYSCALL_DEFINE6(attach, char __user *, path, unsigned, access_type,
 	}
 
 	mmap_read_lock(mm);
-	address = (__u64) do_attach(pmo, access_type, 0, 0, key_buf, flags);
+	address = (__u64) do_attach(pmo, access_type, 0, 0, key_buf, size_or_flags);
 	mmap_read_unlock(mm);
 
 

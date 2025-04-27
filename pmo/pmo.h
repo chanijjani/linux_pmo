@@ -132,6 +132,12 @@ struct pmo_pages
 };
 
 
+#define PMO_CLEAR_DIRTY_BIT 0x0
+#define PMO_CLEAR_ACCESS_BIT 0x1
+
+#define PMO_SHOULD_CLEAR_DIRTY_BIT (flag) (flag & PMO_CLEAR_DIRTY_BIT)
+
+#define PMO_SHOULD_CLEAR_ACCESS_BIT (flag) (flag & PMO_CLEAR_ACCESS_BIT)
 struct vpma_area_struct {
         char type;
         struct rb_node node;

@@ -196,7 +196,6 @@ void _handle_markov_or_stride(struct vpma_area_struct *vpma, unsigned long int p
 /* The entry point to handling a PMO page fault */
 struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t address)
 {
-	/* FIXME: don't do double pointers for this */
 	struct pmo_pages *temp_dirtypage;
 	struct vpma_area_struct *vpma = vma->vpma;
 	/* TODO, FIXME. If PMO_DRAM_IS_ENABLED() is true,
@@ -212,13 +211,6 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 
 	__maybe_unused struct mm_struct *mm = current->mm;
 	__maybe_unused unsigned long long int tick, tock;
-
-	// printk("PMO_BLOCK_IS_ENABLED() = %d, "
-	// 	"PMO_NOPRED_IS_ENABLED() = %d, PMO_DRAM_AS_BUFFER_IS_ENABLED() = %d, "
-	// 	"(PMO_PRED_IS_ENABLED() && !PMO_TEST_AND_SET_IS_HANDLED) = %d\n",
-	// 	PMO_BLOCK_IS_ENABLED(), PMO_NOPRED_IS_ENABLED(),
-	// 	PMO_DRAM_AS_BUFFER_IS_ENABLED(), (PMO_PRED_IS_ENABLED() &&
-	// 				 !PMO_TEST_AND_SET_IS_HANDLED(vpma, pagenum)));
 
 	/* Page is handled, but it's not timely */
 	if ( PMO_PRED_IS_ENABLED() && !PMO_TEST_PAGE_IS_TIMELY(vpma, pagenum) 
@@ -281,8 +273,10 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 				_handle_markov_or_stride(vpma, pagenum);
 
 		}
-		else  /* This is mapped, but we're faulting. This was a spurious fault */
+		else  {/* This is mapped, but we're faulting. This was a spurious fault */
+			printk("This is a fault from a mapped page... %lX\n", address);
 			goto out2;
+		}
 
 		if(err)
 			goto handle_pagefault_failure;
@@ -310,7 +304,6 @@ out2:
 
 	pmo_stats_stop_fault_time(mm->pmo_stats, tick, tock);
 	PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);
-	//up_write(&vpma->pm_sem);
 
 	/* Return the entry in the list if it's not mapped and we have not
 	 * enabled the pagewalk subsystem... */ 
@@ -322,6 +315,5 @@ out2:
 		printk(KERN_WARNING "PF failed at %lX. Will segfault!\n",
 				address);
 		PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);
-		//up_write(&vpma->pm_sem);
     		return NULL;
 }

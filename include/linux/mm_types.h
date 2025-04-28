@@ -400,59 +400,57 @@ struct core_state {
 	struct completion startup;
 };
 
-
-
 struct pmo_stats_struct {
-        char stats_init;
+	char stats_init;
 
-        unsigned long long int
+	unsigned long long int
 
-                /* PSYNC */
-                psynctime_other_start,
-                psynctime_iv_start,
-                psynctime_encrypt_start,
+		/* PSYNC */
+		psynctime_other_start,
+		psynctime_iv_start,
+		psynctime_encrypt_start,
 
-				/* PAGE */
-                page_encrypt_start,
-				page_iv_start,
+		/* PAGE */
+		page_encrypt_start,
+		page_iv_start,
 
-                /* ATTACH */
-                attachtime_wait_start,
-                attachtime_other_start,
-                attachtime_iv_start,
-                attachtime_decrypt_start,
-                attachtime_memcpy_start,
+		/* ATTACH */
+		attachtime_wait_start,
+		attachtime_other_start,
+		attachtime_iv_start,
+		attachtime_decrypt_start,
+		attachtime_memcpy_start,
 
-                /* DETACH */
-                detachtime_start,
+		/* DETACH */
+		detachtime_start,
 
-                /* CREATE */
-                createtime_start,
-                creationtimehandling_start,
+		/* CREATE */
+		createtime_start,
+		creationtimehandling_start,
 
-                /* TIME */
-                psynctime_other, psynctime_encrypt, page_encrypt,
-                attachtime_wait, attachtime_iv, attachtime_other,
-				attachtime_decrypt, attachtime_memcpy,
-                detachtime,createtime,
-                creationtimehandling,
-                pages_touched, total_pages,
-                attach_waits, waiting_time, decryptaheadtime_start, decryptaheadtime,
+		/* TIME */
+		psynctime_other, psynctime_encrypt, page_encrypt,
+		attachtime_wait, attachtime_iv, attachtime_other,
+		attachtime_decrypt, attachtime_memcpy,
+		detachtime,createtime,
+		creationtimehandling,
+		pages_touched, total_pages,
+		attach_waits, waiting_time, decryptaheadtime_start, decryptaheadtime,
 
-                /* page stats */
-                all_pages, pages_dirtied;
+		/* page stats */
+		all_pages, pages_dirtied;
 
 
-        atomic64_t
-                accurate_predictions,
-                mispredict_no_faults,
-                mispredict_faults,
-                total_faults,
-                total_waits,
-                faulttime,
-                psynctime_iv,
-				page_iv,
-                mispredict;
+	atomic64_t
+		accurate_predictions,
+		mispredict_no_faults,
+		mispredict_faults,
+		total_faults,
+		total_waits,
+		faulttime,
+		psynctime_iv,
+		page_iv,
+		mispredict;
 };
 
 struct kioctx_table;

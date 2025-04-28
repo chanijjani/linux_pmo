@@ -87,12 +87,14 @@ SYSCALL_DEFINE5(attach, char __user *, path, unsigned, access_type,
 		 * PMO. The PMO is initially empty. */
 		printk("Trying to create PMO %s of size %lld\n", name, size_or_flags);
 
-		pmo_stats_start_create_time(mm->pmo_stats);
+		pmo_stats_start_create_time(&mm->pmo_stats);
 		do_create(name, size_or_flags, key_buf);
-		pmo_stats_stop_create_time(mm->pmo_stats);
+		pmo_stats_stop_create_time(&mm->pmo_stats);
 
-		printk("PMO_WHOLE_IS_ENABLED(): %d,  PMO_IV_IS_ENABLED(): %d\n",
-			PMO_WHOLE_IS_ENABLED(), PMO_IV_IS_ENABLED());
+		trace_printk("PMO_WHOLE_IS_ENABLED(): %d,  PMO_IV_IS_ENABLED(): %d,  Create_start: %llu, end: %llu\n",
+			PMO_WHOLE_IS_ENABLED(), PMO_IV_IS_ENABLED(), mm->pmo_stats.createtime_start,
+			mm->pmo_stats.createtime);
+
 		return 0;
 	}
 
@@ -174,7 +176,7 @@ void pmo_handle_memcpy_sync(struct skcipher_request *req,
 		struct scatterlist *sg_primary, struct scatterlist *sg_shadow,
 		struct scatterlist *sg_working)
 {
-	__maybe_unused loff_t primary_pos; 
+	loff_t primary_pos; 
 
 	_pmo_memcpy_sync(req, vpma, pagenum, local_iv, sg_primary,
 				sg_shadow, sg_working);

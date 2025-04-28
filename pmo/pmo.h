@@ -346,16 +346,10 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 
 /* Start psync time stuff */
 #define pmo_stats_start_psynctime_other(x) \
-	do { \
-		trace_printk("pmo_stats_start_psynctime_other: mm=%p\n", x); \
-	} while (0)
-	// (x)->psynctime_other_start = ktime_get_ns()
+	(x)->psynctime_other_start = ktime_get_ns()
 
 #define pmo_stats_start_psynctime_iv(x) \
-	do { \
-		trace_printk("pmo_stats_start_psynctime_iv: mm=%p\n", x); \
-	} while (0)
-	// (x)->psynctime_iv_start = ktime_get_ns()
+	(x)->psynctime_iv_start = ktime_get_ns()
 
 #define pmo_stats_start_page_iv(x) \
 	(x)->page_iv_start = ktime_get_ns()

@@ -127,7 +127,7 @@ void _pmo_pred_run(struct vpma_area_struct *vpma,
 
 void _pmo_perform_prediction(struct vpma_area_struct *vpma, unsigned long int pagenum, unsigned int num_predicts)
 {
-	__maybe_unused size_t size_in_pages = vpma->pmo_ptr->size_in_pages;
+	size_t size_in_pages = vpma->pmo_ptr->size_in_pages;
 	struct skcipher_request *req;
        
 	char local_iv[16];
@@ -209,8 +209,8 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 
         int err = 0, not_mapped;
 
-	__maybe_unused struct mm_struct *mm = current->mm;
-	__maybe_unused unsigned long long int tick, tock;
+	struct mm_struct *mm = current->mm;
+	unsigned long long int tick, tock;
 
 	/* Page is handled, but it's not timely */
 	if ( PMO_PRED_IS_ENABLED() && !PMO_TEST_PAGE_IS_TIMELY(vpma, pagenum) 
@@ -222,11 +222,9 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 	/* This has to be behind the lock because it's possible that 
 	 * multiple threads might be servicing the same fault otherwise! */
 
-	// pmo_stats_start_fault_time(&mm->pmo_stats, &tick);
-	trace_printk("pmo_stats_start_fault_time: mm=%p\n", mm);
-	// printk("PMO: Page fault at %lX, pagenum %ld, offset %ld\n",
-	// 		address, pagenum, offset);
-	// printk("[fault_start_time: %llu]\n", tick);
+	pmo_stats_start_fault_time(&mm->pmo_stats, &tick);
+	trace_printk("PMO: Page fault at %lX, pagenum %ld, offset %ld\n",
+			address, pagenum, offset);
 
 	if (PMO_PRED_IS_ENABLED() && vpma->working_data[pagenum].phys_addr == 0) 
 		pmo_init_pred_working_data(vpma, pagenum);
@@ -322,14 +320,17 @@ out2:
 
 	if (PMO_IV_IS_ENABLED()) {
 		/* Check whether hash matches stored hash */
-	        handle_pmo_hash_identical(vpma, vpma->shadow + pagenum * PAGE_SIZE,
-				pagenum);
+		handle_pmo_hash_identical(vpma, vpma->shadow + pagenum * PAGE_SIZE,
+			pagenum);
 	}
 
-	// pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
-	trace_printk("pmo_stats_stop_fault_time: mm=%p, PMO_IV_IS_ENABLED() = %d\n",
-		mm, PMO_IV_IS_ENABLED());
-	// printk("[fault_start_time: %llu,  fault_end_time: %llu]\n", tick, tock);
+	pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
+	// if (tock - tick > 0) {
+	// 	printk("[fault_start_time: %llu,  fault_end_time: %llu, elapsed = %llu], PMO_IV_IS_ENABLED() = %d\n",
+	// 		tick, tock, tock - tick, PMO_IV_IS_ENABLED());
+	// 	trace_printk("[fault_start_time: %llu,  fault_end_time: %llu, elapsed = %llu]\n",
+	// 		tick, tock, tock - tick);
+	// }
 	PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);
 
 	/* Return the entry in the list if it's not mapped and we have not
@@ -338,10 +339,9 @@ out2:
 		temp_dirtypage : NULL;
 
 	handle_pagefault_failure:
-		// pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
-		trace_printk("pmo_stats_stop_fault_time: mm=%p\n", mm);
-		printk(KERN_WARNING "PF failed at %lX. Will segfault!\n",
-				address);
+		pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
+		printk("[fault_start_time: %llu,  fault_end_time: %llu], PMO_IV_IS_ENABLED() = %d\n",
+			tick, tock, PMO_IV_IS_ENABLED());
 		PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);
     		return NULL;
 }

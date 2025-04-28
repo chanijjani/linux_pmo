@@ -133,14 +133,9 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
         struct skcipher_request *req = skcipher_request_alloc(tfm, GFP_KERNEL);
         struct scatterlist sg_primary, sg_shadow;
         char local_iv[16];
-		__maybe_unused struct mm_struct *mm = current->mm;
+		struct mm_struct *mm = current->mm;
 
         DECLARE_COMPLETION(wait);
-
-		// pmo_stats_start_page_encrypt(&mm->pmo_stats);
-		trace_printk("pmo_stats_start_page_encrypt: mm=%p\n", mm);
-		// mm->pmo_stats.page_encrypt_start = ktime_get_ns();
-		// trace_printk("[Page-encrypt_start: %lld]\n", mm->pmo_stats.page_encrypt_start);
 
         memcpy(local_iv, vpma->crypto.pmo_iv, 16);
 
@@ -152,6 +147,8 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
 		kernel_read(PMO_FILE_PTR, primary, PAGE_SIZE, &primary_pos);
 	}
 
+	pmo_stats_start_page_encrypt(&mm->pmo_stats);
+
         sg_init_one(&sg_primary, primary, PAGE_SIZE);
         sg_init_one(&sg_shadow, shadow, PAGE_SIZE);
 
@@ -159,6 +156,10 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
                         local_iv);
         crypto_skcipher_decrypt(req);
         wait_for_completion(&wait);
+
+	pmo_stats_stop_page_encrypt(&mm->pmo_stats);
+	trace_printk("[Page-encrypt_start: %lld,  Page-encrypt_end: %lld]",
+			mm->pmo_stats.page_encrypt_start, mm->pmo_stats.page_encrypt);
 
 
         pmo_sync(shadow, PAGE_SIZE);
@@ -172,11 +173,6 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
 	}
         skcipher_request_free(req);
         pmo_barrier();
-		
-		// pmo_stats_stop_page_encrypt(&mm->pmo_stats);
-		trace_printk("pmo_stats_stop_page_encrypt: mm=%p\n", mm);
-		// mm->pmo_stats.page_encrypt += ktime_get_ns() - mm->pmo_stats.page_encrypt_start;
-		// trace_printk("[Page-encrypt_end: %lld]\n", mm->pmo_stats.page_encrypt);
 
         return;
 }

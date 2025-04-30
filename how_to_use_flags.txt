@@ -1,0 +1,12 @@
+To use the newly added flags argument, add an additional argument to pmo_attach in /usr/include/pmo.h, "unsigned char flag" and pass in flag after "key".
+
+See below:
+
+
+static inline void * pmo_attach(const char *object, const char command,
+                const char *key, unsigned char flag)
+{
+        uint64_t addr;
+        syscall(548, object, command, key, flag, &addr);//, flag);
+        return (void *) addr;
+}

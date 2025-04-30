@@ -132,12 +132,11 @@ struct pmo_pages
 };
 
 
-#define PMO_CLEAR_DIRTY_BIT 0x0
-#define PMO_CLEAR_ACCESS_BIT 0x1
+#define PMO_CLEAR_WRITE 0x0
+#define PMO_CLEAR_READWRITE 0x1
 
-#define PMO_SHOULD_CLEAR_DIRTY_BIT (flag) (flag & PMO_CLEAR_DIRTY_BIT)
-
-#define PMO_SHOULD_CLEAR_ACCESS_BIT (flag) (flag & PMO_CLEAR_ACCESS_BIT)
+#define PMO_SHOULD_CLEAR_WRITE(x) (x->flags & PMO_CLEAR_WRITE)
+#define PMO_SHOULD_CLEAR_READWRITE(x) (x->flags & PMO_CLEAR_READWRITE)
 struct vpma_area_struct {
         char type;
         struct rb_node node;
@@ -1177,6 +1176,8 @@ void pmo_pagewalk_unset_dirtybits(struct vpma_area_struct *vpma,
 
 inline void pmo_clear_dirty(pte_t *pte);
 inline void pmo_clear_access(pte_t *pte);
+inline void pmo_clear_write(pte_t *pte);
+inline void pmo_clear_read(pte_t *pte);
 
 
 /*******************************

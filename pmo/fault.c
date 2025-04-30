@@ -267,14 +267,33 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 				goto handle_page_destroyed;
 			}
 			inc_pages_touched(vpma);
-			current->mm->pmo_stats.pages_dirtied++; // += pmo->size_in_pages;
+			current->mm->pmo_stats.pages_dirtied++; 
 
 			if (PMO_MARKOV_IS_ENABLED() || PMO_STRIDE_IS_ENABLED())
 				_handle_markov_or_stride(vpma, pagenum);
 
 		}
-		else  {/* This is mapped, but we're faulting. This was a spurious fault */
-			printk("This is a fault from a mapped page... %lX\n", address);
+		else  {
+			/* This is mapped, but we're faulting.
+			 * This shouldn't happen UNLESS vpma->flags has
+			 * PMO_CLEAR_WRITE | PMO_CLEAR_READWRITE. In those
+			 * cases, we should verify the page's checksum since
+			 * last psync call */
+			WARN_ON(!PMO_SHOULD_CLEAR_WRITE(vpma) &&
+					!PMO_SHOULD_CLEAR_READWRITE(vpma));
+
+			/* We're faulting on a mapped page, caused by either
+			 * the write permissions being cleared or both the read
+			 * and write permissions being cleared. 
+			 * In either case, we should skip changing the
+			 * page fault permissions.
+			 *
+			 * TODO: If we're  using the nopagewalk model, we will
+			 * need to detect whether this was a fault from read
+			 * or not, and only skip if it was a fault from read,
+			 * otherwise it needs to be inserted into dirty pages. 
+			 * But since we aren't using the nopagewalk model right
+			 * now, there's no need to do this yet. -- DG */
 			goto out2;
 		}
 
@@ -288,19 +307,19 @@ handle_page_destroyed:
 
         
 	/* If we're using the no pagewalk model, we'll add this to the
-	 * dirtypages as well, If we've got the PTE, we'll add that as well. */
+	 * dirtypages as well, If we've got the PTE, we'll add that as well. 
+	 * This function does nothing when not using this model.*/
 	temp_dirtypage = vpma_insert_into_dirtypages(vpma, pfn, offset,
 			not_mapped ? NULL : pte, not_mapped ? NULL : ptl); 
 	
 
 out2:
 
-	/* Check whether hash matches stored hash */
-	// printk("PMO_IV_IS_ENABLED(): %d, PMO_WHOLE_IS_ENABLED(): %d\n",
-	// 		PMO_IV_IS_ENABLED(), PMO_WHOLE_IS_ENABLED());
-	if (PMO_IV_IS_ENABLED())
+	if (PMO_IV_IS_ENABLED()) {
+		/* Check whether hash matches stored hash */
 	        handle_pmo_hash_identical(vpma, vpma->shadow + pagenum * PAGE_SIZE,
 				pagenum);
+	}
 
 	pmo_stats_stop_fault_time(mm->pmo_stats, tick, tock);
 	PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);

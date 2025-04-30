@@ -274,10 +274,9 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
         req = skcipher_request_alloc(tfm, GFP_KERNEL);
         memcpy(local_iv, pmo_get_iv(vpma), 16);
     }
-
 	if (!(*dirty_ll) || list_empty(&(*dirty_ll)->list))
 	{
-		printk("No dirty pages to sync.\n");
+		printk("Note: No dirty pages to sync.\n");
 	}
 
     /* This is the first point in which the primary is being
@@ -314,8 +313,6 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
     }
     pmo_barrier();
 
-	printk("PMO_SHOULD_VERIFY_SHADOW_AND_PRIMARY: %d\n",
-	       PMO_SHOULD_VERIFY_SHADOW_AND_PRIMARY());
     list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list)
     {
         if (PMO_BLOCK_IS_ENABLED())

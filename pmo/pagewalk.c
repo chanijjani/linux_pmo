@@ -172,8 +172,7 @@ void _pmo_handle_pte_present(pte_t *pte, int flag, struct vm_area_struct *vma,
 	 * impossible). To fix this, we just don't get the struct page of the
 	 * associated PTE anymore.
 	 */
-
-        /* Should I persist the page? */
+	        /* Should I persist the page? */
         if((flag & DB_PERSIST) && pte_dirty(*pte)) {
                 /* FIXME: This works, but it will break if PMOs can ever be
                  * non-contiguous in physical memory */
@@ -181,7 +180,7 @@ void _pmo_handle_pte_present(pte_t *pte, int flag, struct vm_area_struct *vma,
 		pmo_clear_dirty(pte);
 
 		pmo_towards_access(vpma,offset/PAGE_SIZE);
-		return;
+		goto out;
         }
 
 	/* This page is present, but not dirty, which means that it has
@@ -196,12 +195,25 @@ void _pmo_handle_pte_present(pte_t *pte, int flag, struct vm_area_struct *vma,
 		 * encryption. Transition towards not destroying the 
 		 * shadow  */
 		pmo_towards_access(vpma, offset/PAGE_SIZE);
-		return;
+		goto out;
 	}
 	
 	pmo_towards_or_set_inert(vpma, offset/PAGE_SIZE);
 	/* The page is old, so move towards destroy*/
 	pmo_clear_access(pte);
+
+out:
+	if(PMO_SHOULD_CLEAR_WRITE(vpma)) {
+		printk("The flag to clear the write is enabled\n");
+		 pmo_clear_write(pte);
+	}
+
+	if(PMO_SHOULD_CLEAR_READWRITE(vpma)) {
+		printk("The flag to clear all permissions are enabled\n");
+		 pmo_clear_write(pte);
+		 pmo_clear_read(pte);
+	}
+
         return;
 }
 

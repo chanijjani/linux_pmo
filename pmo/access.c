@@ -73,7 +73,7 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 
 	char *name;
 
-	__maybe_unused unsigned long long int end_ktyime, start_ktime;
+	unsigned long long int end_ktyime, start_ktime;
 
 	struct vpma_area_struct *vpma;
 	size_t length = (size == 0 ? pmo->size_in_pages * PAGE_SIZE : size);
@@ -82,9 +82,13 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 	
 	name = _build_pmo_name(pmo->name, size, page_offset);
 
-	pmo_stats_start_attachtime_other(mm->pmo_stats);
+	pmo_stats_start_attachtime_other(&mm->pmo_stats);
+	trace_printk("[Attach_Total_start: %lld]", mm->pmo_stats.attachtime_other_start);
+
 	vpma = vpma_search(&(mm->pmo_rb), name);
-	pmo_stats_start_attachtime_wait(mm->pmo_stats);
+
+	pmo_stats_start_attachtime_wait(&mm->pmo_stats);
+	trace_printk("[Attach_wait_start: %lld]", mm->pmo_stats.attachtime_wait_start);
 
 	if (vpma)
 		down_write(&vpma->pm_sem);
@@ -93,12 +97,14 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 		mmap_read_lock(mm);
 		*/
 
-	pmo_stats_stop_attachtime_wait(mm->pmo_stats);
+	pmo_stats_stop_attachtime_wait(&mm->pmo_stats);
+	trace_printk("[Attach_wait_elapsed: %lld]", mm->pmo_stats.attachtime_wait);
 
 	/* Check if we need to recover anything. Don't recover a new PMO */
 	if (!pmo_bit_is_set(6, pmo) && pmo->state && pmo->state != 1) {
 		if (recover (pmo, prot_type, key) == -1) {
-			pmo_stats_stop_attachtime_other(mm->pmo_stats);
+			pmo_stats_stop_attachtime_other(&mm->pmo_stats);
+			trace_printk("[Attach_wait_elapsed: %lld]", mm->pmo_stats.attachtime_wait);
 			return NULL; /* Bail out */
 		}
 	}
@@ -128,12 +134,16 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 	  vpma->flags = flags;
 	 if(enable_vpma_access(vpma, length, PAGE_SIZE * page_offset, prot_type, key)) {
 		 printk(KERN_WARNING "Enable VPMA access failed!\n");
-		pmo_stats_stop_attachtime_other(mm->pmo_stats);
+		pmo_stats_stop_attachtime_other(&mm->pmo_stats);
+		trace_printk("[Attach_Total_elapsed: %lld]", mm->pmo_stats.attachtime_other);
 		return 0;
 	 }
 
 	 kvfree(name);
-	 pmo_stats_stop_attachtime_other(mm->pmo_stats);
+
+	 pmo_stats_stop_attachtime_other(&mm->pmo_stats);
+	 trace_printk("[Attach_Total_elapsed: %lld]", mm->pmo_stats.attachtime_other);
+
 	 pmo_update_metadata(vpma);
 	 return (void *) vpma->vma->vm_start;
 
@@ -303,7 +313,10 @@ int do_detach(struct mm_struct *mm, char *path)
 	}
 	
 	mm->pmo_stats.all_pages += pmo->size_in_pages;
-	pmo_stats_start_detach_time(mm->pmo_stats);
+
+	pmo_stats_start_detach_time(&mm->pmo_stats);
+	trace_printk("[Detach_start: %lld]", mm->pmo_stats.detachtime_start);
+
 	down_write(&vpma->pm_sem);
         vma->vm_flags &= ~(VM_READ|VM_WRITE|VM_EXEC);
         vma_set_page_prot(vma);
@@ -312,7 +325,10 @@ int do_detach(struct mm_struct *mm, char *path)
 		nonblocking_disable_vpma_access(vpma);
 	else /* Directly call disable_vpma_access */
 		disable_vpma_access(vpma);
-	pmo_stats_stop_detach_time(mm->pmo_stats);
+
+	pmo_stats_stop_detach_time(&mm->pmo_stats);
+	trace_printk("[Detach_end: %lld]", mm->pmo_stats.detachtime);
+
 	return 0;
 }
 
@@ -480,13 +496,13 @@ void _pmo_populate_prediction_statistics (struct vpma_area_struct *vpma)
 	for (pagenum = 0; pagenum < vpma->pmo_ptr->size_in_pages; pagenum++) {
 		if (PMO_TEST_IS_PREDICTED(vpma, pagenum) && 
 				PMO_TEST_IS_FAULTED(vpma, pagenum))
-			atomic_inc(&mm->pmo_stats.accurate_predictions);
+			atomic64_inc(&mm->pmo_stats.accurate_predictions);
 
 		else if (PMO_TEST_IS_PREDICTED(vpma, pagenum))
-			atomic_inc(&mm->pmo_stats.mispredict_no_faults);
+			atomic64_inc(&mm->pmo_stats.mispredict_no_faults);
 
 		else if (PMO_TEST_IS_FAULTED(vpma, pagenum))
-			atomic_inc(&mm->pmo_stats.mispredict_faults);
+			atomic64_inc(&mm->pmo_stats.mispredict_faults);
 	}
 	return;
 

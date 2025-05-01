@@ -26,7 +26,8 @@ void do_create(char *name, __u64 size, char *key)
         __u64 address, hash, 
 	      pmolist_start = metadata_start + sizeof(union pmo_header) + sizeof(__u64);
 
-	pmo_stats_start_create_time(mm->pmo_stats);
+	pmo_stats_start_create_time(&mm->pmo_stats);
+	trace_printk("[Create_start: %lld]", mm->pmo_stats.createtime_start);
 	memset(local_key, 0, 64);
 	strncpy(local_key, key, 64);
 
@@ -61,6 +62,7 @@ void do_create(char *name, __u64 size, char *key)
 	pmo_sync(pmo->iv, 16);
 	pmo_barrier();
 
-	pmo_stats_stop_create_time(mm->pmo_stats);
+	pmo_stats_stop_create_time(&mm->pmo_stats);
+	trace_printk("[Create_end: %lld]", mm->pmo_stats.createtime);
 	return; 
 }

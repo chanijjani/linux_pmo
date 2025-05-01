@@ -18,8 +18,8 @@
 
 void get_sha256_hash(void *ret, void *data, size_t size)
 {
-          __maybe_unused struct crypto_shash *alg;
-          __maybe_unused char digest[32];
+          struct crypto_shash *alg;
+          char digest[32];
 	  if(!(PMO_WHOLE_IS_ENABLED() && PMO_IV_IS_ENABLED()))
 		return;
 

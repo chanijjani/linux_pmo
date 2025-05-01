@@ -386,6 +386,51 @@ static ssize_t pmo_depth_write(struct file *filp, const char *buff,
 	return len;
 }
 
+static ssize_t pmo_fault_tolerance_write(struct file *filp, const char *buff,
+	size_t len, loff_t * off)
+{
+	char fault_tolerance_mode[30];
+	int fault_tolerance_design;	
+	
+	if (copy_from_user(fault_tolerance_mode, buff, len) != 0)
+		printk (KERN_WARNING "Copy from user for fault tolerance mode failed!\n");
+
+	fault_tolerance_mode[1] = 0;
+
+	if (kstrtoint (fault_tolerance_mode, 0, &fault_tolerance_design)) {
+		printk ("Could not set unknown mode %s\n", fault_tolerance_mode);
+		return len;
+	}
+
+	switch (fault_tolerance_design) {
+		case (0):
+			PMO_NO_FAULT_TOLERANCE();
+			printk (KERN_INFO "FAULT TOLERANCE Disabled\n");
+			return len;
+		case (1):
+			PMO_LAZY_FAULT_TOLERANCE();
+			printk (KERN_INFO "LAZY FAULT TOLERANCE\n");
+			return len;
+		case (2):
+			PMO_OLD_EAGER_FAULT_TOLERANCE();
+			printk (KERN_INFO "OLD EAGER FAULT TOLERANCE\n");
+			return len;
+		case (3):
+			PMO_NEW_EAGER_FAULT_TOLERANCE();
+			printk (KERN_INFO "NEW EAGER FAULT TOLERANCE\n");
+			return len;
+		case (4): 
+			PMO_ENABLE_DIRTYPAGE_RENAMING();
+			printk (KERN_INFO "Dirty Pages Renaming Enabled\n");
+			return len;
+		default:
+			printk (KERN_WARNING "Unknown mode %ld\n",
+				fault_tolerance_design);
+			return len;
+	};
+	return len;
+}
+
 static ssize_t pmo_access_read(struct file *file, char __user *ubuf,
 		size_t count, loff_t *ppos)
 {
@@ -520,6 +565,22 @@ static ssize_t pmo_debug_read(struct file *file, char __user *ubuf,
 	return -1;
 }
 
+static ssize_t pmo_fault_tolerance_read(struct file *file, char __user *ubuf,
+	size_t count, loff_t *ppos)
+{
+	char fault_tolerance_state[256];
+	snprintf(fault_tolerance_state, 30, "%s\n", PMO_NO_FAULT_TOLERANCE() ?
+			"Fault tolerance Disabled\n" : "Fault tolerance Enabled\n");
+
+	if (*ppos > 0 || count < 30)
+		return 0;
+	if(copy_to_user(ubuf, fault_tolerance_state, 32) == 0) {
+		*ppos = strlen(fault_tolerance_state);
+		return (strlen(fault_tolerance_state)); 
+	}
+	return -1;
+}
+
 
 static struct proc_ops pmo_fops =  {
         .proc_read = pmo_proc_read,
@@ -561,6 +622,11 @@ static struct proc_ops pmo_async_checksum_fops = {
 	.proc_write = pmo_asnyc_checksum_write,
 };
 
+static struct proc_ops pmo_fault_tolerance_fops = {
+	.proc_read = pmo_fault_tolerance_read,
+	.proc_write = pmo_fault_tolerance_write,
+};
+
 void pmo_proc_init(void)
 {
 	struct proc_dir_entry *dir = proc_mkdir("pmo", NULL);
@@ -572,5 +638,6 @@ void pmo_proc_init(void)
 	pmo_access_entry = proc_create("access", 0660, dir, &access_fops);
 	pmo_emulate_cxl_entry = proc_create("cxl_emulation", 0660, dir, &pmo_emulate_cxl_fops);
 	pmo_async_checksum_entry = proc_create("async_checksum", 0660, dir, &pmo_async_checksum_fops);
+	pmo_fault_tolerance_entry = proc_create("fault_tolerance", 0660, dir, &pmo_fault_tolerance_fops);
 	return;
 }

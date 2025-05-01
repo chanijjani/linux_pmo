@@ -318,7 +318,10 @@ handle_page_destroyed:
 
 out2:
 
-	if (PMO_IV_IS_ENABLED() && PMO_NOENC_IS_ENABLED()) {
+	if (PMO_IV_IS_ENABLED() && PMO_NOENC_IS_ENABLED() &&
+			(PMO_OLD_EAGER_FAULT_TOLERANCE()
+				|| PMO_NEW_EAGER_FAULT_TOLERANCE()
+				|| PMO_ENABLE_DIRTYPAGE_RENAMING())) {
 		/* Check whether hash matches stored hash */
 	       	PMO_ASYNC_CHECKSUM_IS_ENABLED() ?
 			nonblocking_verify_fault(vpma, pagenum) :

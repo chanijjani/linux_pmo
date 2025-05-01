@@ -106,7 +106,7 @@ extern char ZEROED_PAGE[PAGE_SIZE];
 void pmo_proc_init(void);
 extern struct proc_dir_entry *pmo_proc_entry, *pmo_dram_entry,
        *pmo_pred_entry, *pmo_depth_entry, *pmo_debug_entry,
-       *pmo_access_entry, *pmo_emulate_cxl_entry, *pmo_async_checksum_entry;
+       *pmo_access_entry, *pmo_emulate_cxl_entry, *pmo_async_checksum_entry, *pmo_fault_tolerance_entry;
 
 /* END PROC */
 
@@ -676,12 +676,14 @@ enum IVType {NONE, PSYNC, DETACH};
 enum pred_type {NONE_PRED, STREAM, MARKOV, STRIDE};
 enum access_type {DAX, BLOCK};
 enum cxl_type {PMO_LOCAL, PMO_FAR};
+enum fault_tolerance_type {NO_FAULT_TOLERANCE, LAZY, OLD_EAGER, NEW_EAGER, DIRTYPAGE_RENAMING};
 extern enum access_type pmo_access_mode;
 struct pmo_settings {
 	enum encryption_type enc_mode;
 	enum IVType iv_type;
 	enum pred_type pred;
 	enum cxl_type pmo_cxl_emulation_mode;
+	enum fault_tolerance_type pmo_fault_tolerance_mode;
 	
 	bool dram,
 	     dram_predictahead,
@@ -858,8 +860,25 @@ struct pmo_settings {
 
 #define PMO_IV_DETACH_IS_ENABLED() \
 	(header->this.settings.iv_type == DETACH)
-void pmo_get_mode(char *mode);
 
+
+
+#define PMO_NO_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode == NO_FAULT_TOLERANCE)
+
+#define PMO_LAZY_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode == LAZY)
+
+#define PMO_OLD_EAGER_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode == OLD_EAGER)
+
+#define PMO_NEW_EAGER_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode == NEW_EAGER)
+
+#define PMO_ENABLE_DIRTYPAGE_RENAMING() \
+	(header->this.settings.pmo_fault_tolerance_mode == DIRTYPAGE_RENAMING)
+
+void pmo_get_mode(char *mode);
 
 
 struct pmo_header_s {

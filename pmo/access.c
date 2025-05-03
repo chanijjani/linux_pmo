@@ -193,8 +193,11 @@ int enable_vpma_access(struct vpma_area_struct *vpma, __u64 size,
 			
 		vpma->current_mm = current->mm;
 
-		if (PMO_PRED_IS_ENABLED() || PMO_DRAM_IS_ENABLED()) {
-			vpma->working_data = kvmalloc (size/PAGE_SIZE * sizeof (struct working_page), GFP_KERNEL);
+		if (PMO_PRED_IS_ENABLED() || PMO_IV_IS_ENABLED() || PMO_DRAM_IS_ENABLED()) {
+			vpma->working_data = 
+				kvmalloc (size/PAGE_SIZE * sizeof (struct working_page),
+						GFP_KERNEL);
+			pmo_initialize_verify_thread(vpma);
 			for (i = 0; i < size/PAGE_SIZE; i++)  {
 				/*
 				vpma->working_data[i].phys_addr = 0;

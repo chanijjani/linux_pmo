@@ -52,7 +52,7 @@ void pmo_handle_page_prediction_noenc(struct vpma_area_struct *vpma, unsigned lo
 
 	/* Perform integrity verification ahead of time */
 	if (PMO_IV_IS_ENABLED())
-		handle_pmo_hash_identical (vpma, primary, pagenum);
+		handle_pmo_hash_identical (vpma, primary, pagenum, false);
 
 	/* Unlock page */
 	PMO_PAGE_UNLOCK(vpma, pagenum);
@@ -83,7 +83,8 @@ void _pmo_handle_page_dram_crypto_prediction(struct skcipher_request *req,
 	crypto_skcipher_decrypt (req);
 	/* Perform integrity verification ahead of time */
 	if (PMO_IV_IS_ENABLED())
-		handle_pmo_hash_identical (vpma, primary, pagenum);
+		handle_pmo_hash_identical (vpma, primary, pagenum,
+				PMO_ASYNC_CHECKSUM_IS_ENABLED());
 
 	return;
 }
@@ -118,7 +119,8 @@ void _pmo_handle_page_dram_crypto_dram(struct vpma_area_struct *vpma, size_t off
 
 	skcipher_request_free (req);
 	if (PMO_IV_IS_ENABLED())
-		handle_pmo_hash_identical (vpma, working, offset/PAGE_SIZE);
+		handle_pmo_hash_identical (vpma, working, offset/PAGE_SIZE,
+				PMO_ASYNC_CHECKSUM_IS_ENABLED());
 
 	return;
 }
@@ -154,7 +156,8 @@ void _pmo_handle_page_dram_crypto(struct vpma_area_struct *vpma, unsigned long i
 
 	skcipher_request_free (req);
 	if (PMO_IV_IS_ENABLED())
-		handle_pmo_hash_identical (vpma, primary, offset/PAGE_SIZE);
+		handle_pmo_hash_identical (vpma, primary, offset/PAGE_SIZE,
+				PMO_ASYNC_CHECKSUM_IS_ENABLED());
 
 	return;
 }
@@ -313,7 +316,8 @@ void pmo_handle_dirty_dram (struct vpma_area_struct *vpma, unsigned long offset)
 
 	skcipher_request_free (req);
 
-	handle_pmo_hash_identical (vpma, working, offset/PAGE_SIZE);
+	handle_pmo_hash_identical (vpma, working, offset/PAGE_SIZE,
+			PMO_ASYNC_CHECKSUM_IS_ENABLED());
 	/* FIXME: do this in a chain instead of waiting for each to complete */
 	return;
 }

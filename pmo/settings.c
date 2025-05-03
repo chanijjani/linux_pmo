@@ -204,6 +204,37 @@ static ssize_t pmo_access_write(struct file *filp, const char *buff,
 
 }
 
+static ssize_t pmo_asnyc_checksum_write(struct file *filp, const char *buff,
+		size_t len, loff_t *off)
+{
+	char async_type[30];
+	int async_type_num;
+	if(copy_from_user(async_type, buff, len) != 0)
+		printk(KERN_WARNING "Copy from user for async checksum write failed!\n");
+
+	async_type[1] = 0;
+
+	if (kstrtoint(async_type, 0, &async_type_num)) {
+		printk(KERN_WARNING "Could not set unknown async type %s\n", async_type);
+		return len;
+	}
+
+	switch(async_type_num) {
+		case (0):
+			PMO_DISABLE_ASYNC_CHECKSUM();
+			printk(KERN_INFO "Disabled async checksum on fault\n");
+			return len;
+		case (1):
+			PMO_ENABLE_ASYNC_CHECKSUM();
+			printk(KERN_INFO "Enabled async checksum on fault\n");
+			return len;
+		default:
+			printk(KERN_WARNING "Unknown async type %d\n", async_type_num);
+			return len;
+	};
+	return len;
+}
+
 static ssize_t pmo_emulate_cxl_write(struct file *filp, const char *buff,
 		size_t len, loff_t *off)
 {
@@ -232,7 +263,7 @@ static ssize_t pmo_emulate_cxl_write(struct file *filp, const char *buff,
 			printk (KERN_INFO "Set cxl type to far (NUMA for DRAM)!\n");
 			return len;
 		default:
-			printk (KERN_WARNING "Unknown mode %d", cxl_type_num);
+			printk (KERN_WARNING "Unknown cxl mode %d\n", cxl_type_num);
 			return len;
 	};
 	return len;
@@ -374,6 +405,22 @@ static ssize_t pmo_access_read(struct file *file, char __user *ubuf,
 	return -1;
 }
 
+static ssize_t pmo_async_checksum_read(struct file *file, char __user *ubuf,
+		size_t count, loff_t *ppos)
+{
+	char async_type[30];
+	if (*ppos > 0 || count < 30)
+		return 0;
+
+	strcpy(async_type, PMO_ASYNC_CHECKSUM_IS_ENABLED() ?  "TRUE" : "FALSE");
+
+	if (copy_to_user(ubuf, async_type, 30) == 0) {
+		*ppos = strlen(async_type);
+		return (strlen(async_type));
+	}
+	return -1;
+}
+
 static ssize_t pmo_emulate_cxl_read(struct file *file, char __user *ubuf,
 		size_t count, loff_t *ppos)
 {
@@ -509,6 +556,11 @@ static struct proc_ops pmo_emulate_cxl_fops = {
 	.proc_write = pmo_emulate_cxl_write,
 };
 
+static struct proc_ops pmo_async_checksum_fops = {
+	.proc_read = pmo_async_checksum_read,
+	.proc_write = pmo_asnyc_checksum_write,
+};
+
 void pmo_proc_init(void)
 {
 	struct proc_dir_entry *dir = proc_mkdir("pmo", NULL);
@@ -519,5 +571,6 @@ void pmo_proc_init(void)
 	pmo_debug_entry = proc_create("debug", 0660, dir, &debug_fops);
 	pmo_access_entry = proc_create("access", 0660, dir, &access_fops);
 	pmo_emulate_cxl_entry = proc_create("cxl_emulation", 0660, dir, &pmo_emulate_cxl_fops);
+	pmo_async_checksum_entry = proc_create("async_checksum", 0660, dir, &pmo_async_checksum_fops);
 	return;
 }

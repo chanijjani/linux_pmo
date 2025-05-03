@@ -106,7 +106,7 @@ extern char ZEROED_PAGE[PAGE_SIZE];
 void pmo_proc_init(void);
 extern struct proc_dir_entry *pmo_proc_entry, *pmo_dram_entry,
        *pmo_pred_entry, *pmo_depth_entry, *pmo_debug_entry,
-       *pmo_access_entry, *pmo_emulate_cxl_entry;
+       *pmo_access_entry, *pmo_emulate_cxl_entry, *pmo_async_checksum_entry;
 
 /* END PROC */
 
@@ -191,6 +191,8 @@ struct vpma_area_struct {
 	        volatile long unsigned int flag;
 		
 		bool page_in_buffer;
+	
+		struct task_struct *verify_thread;
 	} *working_data;
 
 	/* I heard you like structs, so I nested a struct within a union within a
@@ -246,6 +248,11 @@ struct vpma_area_struct {
 
 #ifdef CONFIG_PMO_NONBLOCKING
 	struct task_struct *disable_thread;
+#endif
+
+
+#ifdef CONFIG_PMO_NONBLOCKING_CHECKSUM_SYNC
+	struct task_struct *checksum_sync_thread;
 #endif
 
 	struct mutex *lock_page;
@@ -681,7 +688,8 @@ struct pmo_settings {
 	     enc_in_dram,
 	     dram_as_buffer,
 	     debug,
-	     paranoid;
+	     paranoid,
+	     async_checksum;
 
 	char depth;
 };
@@ -694,6 +702,15 @@ struct pmo_settings {
 
 #define PMO_DEBUG_MODE_IS_ENABLED() \
 	header->this.settings.debug
+
+#define PMO_ASYNC_CHECKSUM_IS_ENABLED() \
+	header->this.settings.async_checksum
+
+#define PMO_ENABLE_ASYNC_CHECKSUM() \
+	header->this.settings.async_checksum = true
+
+#define PMO_DISABLE_ASYNC_CHECKSUM() \
+	header->this.settings.async_checksum = false
 
 #define PMO_DISABLE_ENCRYPT_IN_DRAM() \
 	header->this.settings.enc_in_dram = false
@@ -964,7 +981,10 @@ int enable_vpma_access(struct vpma_area_struct *vpma, __u64 size,
 int disable_vpma_access(struct vpma_area_struct *vpma);
 #ifdef CONFIG_PMO_NONBLOCKING
 void nonblocking_disable_vpma_access(struct vpma_area_struct *vpma);
+void nonblocking_verify_fault(struct vpma_area_struct *vpma,
+		unsigned long pagenum);
 void pmo_initialize_detach_thread(struct vpma_area_struct *vpma);
+void pmo_initialize_verify_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_decryptahead_thread(struct vpma_area_struct *vpma);
 void pmo_run_decryptahead_thread(struct vpma_area_struct *vpma);
 #else
@@ -1372,7 +1392,7 @@ void get_sha256_hash(void *ret, void *data, size_t size);
 void pmo_obtain_shadow_hash(struct vpma_area_struct *vpma, size_t page_offset);
 
 void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
-		void *decrypted_data, size_t page_offset);
+		void *decrypted_data, size_t page_offset, bool is_async);
 void pmo_assign_primary_hash(struct vpma_area_struct *vpma,
 		size_t page_offset);
 void vpma_set_sha_ranges(struct vpma_area_struct *vpma);

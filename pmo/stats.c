@@ -10,6 +10,12 @@ void pmo_dump_stats(struct pmo_stats_struct stats)
 			stats.attachtime_iv, stats.attachtime_other - (stats.attachtime_wait + (stats.attachtime_decrypt - stats.attachtime_iv) \
 			       	+ stats.attachtime_memcpy + stats.attachtime_iv));
 	printk("Detach: %lld\n", stats.detachtime);
+	printk("Execution End: %lld  Start: %lld\n",
+		stats.psynctime_other_start, stats.attachtime_end);
+	unsigned long long int execution_time = stats.psynctime_other_start - stats.attachtime_end;
+	if (execution_time < 0)
+		execution_time = 0;
+	printk("Total Execution: %lld\n", execution_time);
 	printk("Psync Total: %lld, Psync IV: %lld, Psync Encrypt: %lld, Psync Other: %lld\n",
 		stats.psynctime_other, atomic_read(&stats.psynctime_iv),
 		stats.psynctime_encrypt, stats.psynctime_other - stats.psynctime_encrypt - atomic_read(&stats.psynctime_iv));
@@ -23,7 +29,7 @@ void pmo_dump_stats(struct pmo_stats_struct stats)
 	printk("Total pages dirtied: %lld\ntotal possible pages that could have been touched: %lld\n",
 			stats.pages_dirtied, stats.all_pages);
 
-	printk ("Total accurate predictions: %lld\nTotal predictions that failed to fault: %lld\nTotal faults not associated with a prediction: %lld\nTotal Prediction waits: %lld\n",
+	printk ("Total accurate predictions: %lld\nTotal predictions that failed to fault: %lld\nTotal faults not associated with a prediction: %lld\nTotal Prediction waits: %d\n",
 			atomic_read(&stats.accurate_predictions),
 			atomic_read(&stats.mispredict_no_faults),
 			atomic_read(&stats.mispredict_faults),

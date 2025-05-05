@@ -391,6 +391,9 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 
 /* Stop attach time stuff */
 
+#define pmo_stats_stop_attachtime_end(x) \
+	x.attachtime_end = ktime_get_ns()
+
 #define pmo_stats_stop_attachtime_other(x) { \
 	x.attachtime_other += ktime_get_ns() - x.attachtime_other_start; \
 	x.attachtime_other_start = 0; }
@@ -435,7 +438,6 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 
 #define pmo_stats_stop_detach_time(x) \
 	x.detachtime += ktime_get_ns() - x.detachtime_start
-
 
 #define pmo_stats_start_fault_time(x, tick) \
 	tick = ktime_get_ns()

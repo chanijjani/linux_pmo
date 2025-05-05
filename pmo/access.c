@@ -77,9 +77,10 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 
 	struct vpma_area_struct *vpma;
 	size_t length = (size == 0 ? pmo->size_in_pages * PAGE_SIZE : size);
-
 	
 	name = _build_pmo_name(pmo->name, size, page_offset);
+
+	// pmo_init_timing_info(mm->pmo_stats);
 
 	pmo_stats_start_attachtime_other(mm->pmo_stats);
 	vpma = vpma_search(&(mm->pmo_rb), name);
@@ -146,6 +147,9 @@ out:
 	 kvfree(name);
 	 pmo_stats_stop_attachtime_other(mm->pmo_stats);
 	 pmo_update_metadata(vpma);
+
+	 pmo_stats_stop_attachtime_end(mm->pmo_stats);
+
 	 return (void *) vpma->vma->vm_start;
 
 }
@@ -314,6 +318,10 @@ int do_detach(struct mm_struct *mm, char *path)
 	}
 	
 	mm->pmo_stats.all_pages += pmo->size_in_pages;
+
+	// FIXME: Dump this onlf if a proper option is set
+	pmo_dump_stats(mm->pmo_stats);
+
 	pmo_stats_start_detach_time(mm->pmo_stats);
 	down_write(&vpma->pm_sem);
         vma->vm_flags &= ~(VM_READ|VM_WRITE|VM_EXEC);
@@ -324,6 +332,7 @@ int do_detach(struct mm_struct *mm, char *path)
 	else /* Directly call disable_vpma_access */
 		disable_vpma_access(vpma);
 	pmo_stats_stop_detach_time(mm->pmo_stats);
+
 	return 0;
 }
 

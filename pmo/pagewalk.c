@@ -204,14 +204,12 @@ void _pmo_handle_pte_present(pte_t *pte, int flag, struct vm_area_struct *vma,
 
 out:
 	if(PMO_SHOULD_CLEAR_WRITE(vpma)) {
-		printk("The flag to clear the write is enabled\n");
-		 pmo_clear_write(pte);
+		pmo_clear_write(pte);
 	}
 
 	if(PMO_SHOULD_CLEAR_READWRITE(vpma)) {
-		printk("The flag to clear all permissions are enabled\n");
-		 pmo_clear_write(pte);
-		 pmo_clear_read(pte);
+		pmo_clear_write(pte);
+		pmo_clear_read(pte);
 	}
 
         return;

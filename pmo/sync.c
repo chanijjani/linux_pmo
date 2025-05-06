@@ -84,6 +84,12 @@ SYSCALL_DEFINE2(psync, __u64, starting_vma_address, __u64, size)
     primary = vpma->primary;
     shadow = vpma->shadow;
 
+    if(PMO_SHOULD_CLEAR_WRITE(vpma)) {
+		printk("The flag to clear the write is enabled\n");
+	}
+	if(PMO_SHOULD_CLEAR_READWRITE(vpma)) {
+		printk("The flag to clear all permissions are enabled\n");
+	}
     pmo_sync_pages(vpma, starting_vma_address, !size);
     // pmo_add_total_pages(vpma);
 

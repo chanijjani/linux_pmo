@@ -301,9 +301,10 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
      */
     WARN_ON(pmo_test_and_lock(3, pmo));
 
-    /* FIXME: How can the page be destroyed if it's dirty...? */
-    pmo_stats_start_psynctime_encrypt(&mm->pmo_stats);
+    if (!PMO_NOENC_IS_ENABLED())
+        pmo_stats_start_psynctime_encrypt(&mm->pmo_stats);
 
+    /* FIXME: How can the page be destroyed if it's dirty...? */
     list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list)
     {
         if (!PMO_PAGE_IS_DESTROYED(vpma, cursor->pagenum))
@@ -338,9 +339,11 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
         kfree(cursor);
     }
 
-    pmo_stats_stop_psynctime_encrypt(&mm->pmo_stats);
-    trace_printk("[PSYNC-encrypt_elapsed: %lld (+ %lld)]",
-        mm->pmo_stats.psynctime_encrypt_start, mm->pmo_stats.psynctime_encrypt);
+    if (!PMO_NOENC_IS_ENABLED()) {
+        pmo_stats_stop_psynctime_encrypt(&mm->pmo_stats);
+        trace_printk("[PSYNC-encrypt_elapsed: %lld (+ %lld)]",
+            mm->pmo_stats.psynctime_encrypt_start, mm->pmo_stats.psynctime_encrypt);
+    }
 
     pmo_psync_wait(vpma);
 

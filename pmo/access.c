@@ -78,7 +78,9 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 	struct vpma_area_struct *vpma;
 	size_t length = (size == 0 ? pmo->size_in_pages * PAGE_SIZE : size);
 
-	printk("Current flags for PMO is %lX\n", flags);
+	char mode[20];
+	pmo_get_mode(mode);
+	printk("Attach flags for PMO is %lX, Async: %s, PMO MODE: [%s]\n", flags, PMO_DISABLE_ASYNC_CHECKSUM() ? "Disabled" : "Enabled", mode);
 	
 	name = _build_pmo_name(pmo->name, size, page_offset);
 

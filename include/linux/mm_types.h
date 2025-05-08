@@ -430,7 +430,7 @@ struct pmo_stats_struct {
 
 		/* TIME */
 		psynctime_other, psynctime_encrypt, page_encrypt,
-		attachtime_wait, attachtime_iv, attachtime_other,
+		attachtime_end, attachtime_wait, attachtime_iv, attachtime_other,
 		attachtime_decrypt, attachtime_memcpy,
 		detachtime,createtime,
 		creationtimehandling,

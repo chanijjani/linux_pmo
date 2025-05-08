@@ -145,6 +145,8 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 	 trace_printk("[Attach_Total_elapsed: %lld]", mm->pmo_stats.attachtime_other);
 
 	 pmo_update_metadata(vpma);
+	 pmo_stats_stop_attachtime_end(&mm->pmo_stats);
+
 	 return (void *) vpma->vma->vm_start;
 
 }

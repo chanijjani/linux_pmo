@@ -415,6 +415,8 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 	(x)->attachtime_memcpy_start = ktime_get_ns()
 
 /* Stop attach time stuff */
+#define pmo_stats_stop_attachtime_end(x) \
+	(x)->attachtime_end = ktime_get_ns()
 
 #define pmo_stats_stop_attachtime_other(x) { \
 	(x)->attachtime_other += ktime_get_ns() - (x)->attachtime_other_start; \

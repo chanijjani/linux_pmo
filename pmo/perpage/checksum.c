@@ -84,7 +84,7 @@ void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
 
 	/* This makes no sense if this is an asynchronous call, because current
 	 * is literally just the kernel thread */
-	if (!async) 
+	if (!PMO_ASYNC_CHECKSUM_IS_ENABLED()) 
         	pmo_stats_start_page_iv(&mm->pmo_stats);
 
         pmo_get_page_hash(sha256hash, _data);
@@ -112,7 +112,7 @@ void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
                 memcpy_flushcache(OFFSET_TO_SHA(shadow_sha_offset), sha256hash,
                                 32);
 
-	if (!async) {
+	if (!PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
  	       pmo_stats_stop_page_iv(&mm->pmo_stats);
 	       if (atomic64_read(&mm->pmo_stats.page_iv) > 0)
 		       trace_printk("[[Page-IV_start:%lld,Page-IV_end:%lld]]",

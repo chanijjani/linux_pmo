@@ -120,7 +120,7 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
      * stage would consist of walking through (but not building) the
      * linked list. */
     pmo_stats_start_psynctime_other(&mm->pmo_stats);
-    trace_printk("[PSYNC-Total_start: %lld,  IS_ENABLED(CONFIG_PMO_PAGEWALK) = %d]",
+    trace_printk("[PSYNC-Total_start: %lld,  IS_ENABLED(CONFIG_PMO_PAGEWALK) = %d]\n",
         mm->pmo_stats.psynctime_other_start, IS_ENABLED(CONFIG_PMO_PAGEWALK));
 
     mutex_lock(&vpma->page_mutex);
@@ -146,7 +146,7 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
         pmo_barrier();
 
         pmo_stats_stop_psynctime_iv(&current->mm->pmo_stats);
-        trace_printk("[PSYNC-IV_start: %lld, PSYNC-IV_elapsed: %lld]",
+        trace_printk("[PSYNC-IV_start: %lld, PSYNC-IV_elapsed: %lld]\n",
             mm->pmo_stats.psynctime_iv_start, atomic64_read(&mm->pmo_stats.psynctime_iv));
     }
 
@@ -158,7 +158,7 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
     kvfree(dirty_ll);
     mutex_unlock(&vpma->page_mutex);
     pmo_stats_stop_psynctime_other(&mm->pmo_stats);
-    trace_printk("[PSYNC-Total_elapsed: %lld]", mm->pmo_stats.psynctime_other);
+    trace_printk("[PSYNC-Total_elapsed: %lld]\n", mm->pmo_stats.psynctime_other);
 
     return;
 }
@@ -341,7 +341,7 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
 
     if (!PMO_NOENC_IS_ENABLED()) {
         pmo_stats_stop_psynctime_encrypt(&mm->pmo_stats);
-        trace_printk("[PSYNC-encrypt_elapsed: %lld (+ %lld)]",
+        trace_printk("[PSYNC-encrypt_elapsed: %lld (+ %lld)]\n",
             mm->pmo_stats.psynctime_encrypt_start, mm->pmo_stats.psynctime_encrypt);
     }
 

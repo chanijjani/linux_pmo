@@ -158,7 +158,7 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
         wait_for_completion(&wait);
 
 	pmo_stats_stop_page_encrypt(&mm->pmo_stats);
-	trace_printk("[Page-encrypt_start: %lld,  Page-encrypt_end: %lld]",
+	trace_printk("[Page-encrypt_start: %lld,  Page-encrypt_end: %lld]\n",
 			mm->pmo_stats.page_encrypt_start, mm->pmo_stats.page_encrypt);
 
 

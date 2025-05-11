@@ -114,11 +114,13 @@ void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
 
 	if (!PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
                 if (PMO_OLD_EAGER_FAULT_TOLERANCE()) {
+                        memcpy_flushcache(OFFSET_TO_SHA(shadow_sha_offset), sha256hash,
+                                32);
                         pmo_barrier();
                 }
                 pmo_stats_stop_page_iv(&mm->pmo_stats);
                 if (atomic64_read(&mm->pmo_stats.page_iv) > 0)
-                        trace_printk("[[Page-IV_start:%lld,Page-IV_end:%lld]]",
+                        trace_printk("[[Page-IV_start:%lld,Page-IV_end:%lld]]\n",
                                         mm->pmo_stats.page_iv_start,
                                         atomic64_read(&mm->pmo_stats.page_iv));
 	}

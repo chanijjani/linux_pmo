@@ -80,7 +80,7 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 
 	char mode[20];
 	pmo_get_mode(mode);
-	printk("Attach flags for PMO is %lX, Async: %s, PMO MODE: [%s]\n", flags, PMO_DISABLE_ASYNC_CHECKSUM() ? "Disabled" : "Enabled", mode);
+	printk("Attach flags for PMO is %lX, Async: %d, PMO MODE: [%s]\n", flags, PMO_GET_ASYNC_WOKRER_NUM(), mode);
 	
 	name = _build_pmo_name(pmo->name, size, page_offset);
 
@@ -310,6 +310,11 @@ int do_detach(struct mm_struct *mm, char *path)
 	if(unlikely(!vpma)) {
 		printk(KERN_INFO "No associated vpma found that is suitable for detach\n");
 		return -ENOENT;
+	}
+
+	if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
+		trace_printk("Clean up verification workers.\n");
+		pmo_cleanup_verify_workers();
 	}
 
 	pmo = vpma->pmo_ptr;

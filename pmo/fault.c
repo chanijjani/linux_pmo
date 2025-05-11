@@ -318,16 +318,21 @@ handle_page_destroyed:
 
 out2:
 
-	if (PMO_IV_IS_ENABLED() && PMO_NOENC_IS_ENABLED() &&
-			(PMO_OLD_EAGER_FAULT_TOLERANCE()
-				|| PMO_NEW_EAGER_FAULT_TOLERANCE()
-				|| PMO_ENABLE_DIRTYPAGE_RENAMING())) {
+	if (PMO_IV_IS_ENABLED()
+		// && PMO_NOENC_IS_ENABLED()
+		// && (PMO_OLD_EAGER_FAULT_TOLERANCE()
+		// 		|| PMO_NEW_EAGER_FAULT_TOLERANCE()
+		// 		|| PMO_ENABLE_DIRTYPAGE_RENAMING())) {
+	){
 		/* Check whether hash matches stored hash */
-	       	PMO_ASYNC_CHECKSUM_IS_ENABLED() ?
-			nonblocking_verify_fault(vpma, pagenum) :
+	    if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
+			trace_printk("Async Checksum Verification\n");
+			nonblocking_verify_fault(vpma, pagenum);
+		} else {
 			handle_pmo_hash_identical(vpma,
 					vpma->shadow + pagenum * PAGE_SIZE,
 					pagenum, false);
+		}
 	}
 
 	pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);

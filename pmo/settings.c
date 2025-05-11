@@ -208,29 +208,24 @@ static ssize_t pmo_asnyc_checksum_write(struct file *filp, const char *buff,
 		size_t len, loff_t *off)
 {
 	char async_type[30];
-	int async_type_num;
+	int async_worker_num;
 	if(copy_from_user(async_type, buff, len) != 0)
 		printk(KERN_WARNING "Copy from user for async checksum write failed!\n");
 
 	async_type[1] = 0;
 
-	if (kstrtoint(async_type, 0, &async_type_num)) {
+	if (kstrtoint(async_type, 0, &async_worker_num)) {
 		printk(KERN_WARNING "Could not set unknown async type %s\n", async_type);
 		return len;
 	}
 
-	switch(async_type_num) {
-		case (0):
-			PMO_DISABLE_ASYNC_CHECKSUM();
-			printk(KERN_INFO "Disabled async checksum on fault\n");
-			return len;
-		case (1):
-			PMO_ENABLE_ASYNC_CHECKSUM();
-			printk(KERN_INFO "Enabled async checksum on fault\n");
-			return len;
-		default:
-			printk(KERN_WARNING "Unknown async type %d\n", async_type_num);
-			return len;
+	if (async_worker_num == 0) {
+		PMO_DISABLE_ASYNC_CHECKSUM();
+		printk(KERN_INFO "Disabled async checksum on fault\n");
+	}
+	else {
+		PMO_SET_ASYNC_CHECKSUM(async_worker_num);
+		printk(KERN_INFO "Set %d async workers\n", async_worker_num);
 	};
 	return len;
 }
@@ -457,7 +452,8 @@ static ssize_t pmo_async_checksum_read(struct file *file, char __user *ubuf,
 	if (*ppos > 0 || count < 30)
 		return 0;
 
-	strcpy(async_type, PMO_ASYNC_CHECKSUM_IS_ENABLED() ?  "TRUE" : "FALSE");
+	
+	sprintf(async_type, "%d", PMO_GET_ASYNC_WOKRER_NUM());
 
 	if (copy_to_user(ubuf, async_type, 30) == 0) {
 		*ppos = strlen(async_type);

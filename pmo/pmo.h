@@ -692,8 +692,8 @@ struct pmo_settings {
 	     enc_in_dram,
 	     dram_as_buffer,
 	     debug,
-	     paranoid,
-	     async_checksum;
+	     paranoid;
+	int async_checksum;
 
 	char depth;
 };
@@ -708,13 +708,19 @@ struct pmo_settings {
 	header->this.settings.debug
 
 #define PMO_ASYNC_CHECKSUM_IS_ENABLED() \
-	header->this.settings.async_checksum
+	(header->this.settings.async_checksum > 0)
 
-#define PMO_ENABLE_ASYNC_CHECKSUM() \
-	header->this.settings.async_checksum = true
+// #define PMO_ENABLE_ASYNC_CHECKSUM() \
+// 	header->this.settings.async_checksum = 1
 
 #define PMO_DISABLE_ASYNC_CHECKSUM() \
-	header->this.settings.async_checksum = false
+	header->this.settings.async_checksum = 0
+
+#define PMO_GET_ASYNC_WOKRER_NUM() \
+	header->this.settings.async_checksum
+
+#define PMO_SET_ASYNC_CHECKSUM(x) \
+	header->this.settings.async_checksum = x
 
 #define PMO_DISABLE_ENCRYPT_IN_DRAM() \
 	header->this.settings.enc_in_dram = false
@@ -1008,6 +1014,7 @@ void pmo_initialize_detach_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_verify_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_decryptahead_thread(struct vpma_area_struct *vpma);
 void pmo_run_decryptahead_thread(struct vpma_area_struct *vpma);
+void pmo_cleanup_verify_workers(void);
 #else
 #define nonblocking_disable_vpma_access(idx)
 #define pmo_initialize_detach_thread(vpma)

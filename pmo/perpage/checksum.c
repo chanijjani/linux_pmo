@@ -125,8 +125,10 @@ void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
                                         atomic64_read(&mm->pmo_stats.page_iv));
 	}
 
-	if (async)
+	if (PMO_GET_ASYNC_WOKRER_NUM() == 1) {
+                trace_printk("[OLD] Park the verification thread\n");
 		kthread_park(vpma->working_data[page_offset].verify_thread);
+        }
 
         return;
 }

@@ -326,7 +326,7 @@ out2:
 	){
 		/* Check whether hash matches stored hash */
 	    if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
-			trace_printk("Async Checksum Verification\n");
+			trace_printk("Async Checksum Verification, # of Workers = %d\n", PMO_GET_ASYNC_WOKRER_NUM());
 			nonblocking_verify_fault(vpma, pagenum);
 		} else {
 			handle_pmo_hash_identical(vpma,

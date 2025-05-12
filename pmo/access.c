@@ -314,7 +314,8 @@ int do_detach(struct mm_struct *mm, char *path)
 
 	if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
 		trace_printk("Clean up verification workers.\n");
-		pmo_cleanup_verify_workers();
+		// FIXME: Handle the below line correctly
+		// pmo_cleanup_verify_workers();
 	}
 
 	pmo = vpma->pmo_ptr;

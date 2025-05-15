@@ -1,1 +1,1 @@
-obj-$(CONFIG_PMO_NONBLOCKING) += detach.o decryptahead.o verify.o
+obj-$(CONFIG_PMO_NONBLOCKING) += detach.o decryptahead.o verify.o renaming.o

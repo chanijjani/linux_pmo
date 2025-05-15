@@ -402,19 +402,19 @@ static ssize_t pmo_fault_tolerance_write(struct file *filp, const char *buff,
 			PMO_NO_FAULT_TOLERANCE();
 			printk (KERN_INFO "FAULT TOLERANCE Disabled\n");
 			return len;
+		// case (1):
+		// 	PMO_LAZY_FAULT_TOLERANCE();
+		// 	printk (KERN_INFO "LAZY FAULT TOLERANCE\n");
+		// 	return len;
 		case (1):
-			PMO_LAZY_FAULT_TOLERANCE();
-			printk (KERN_INFO "LAZY FAULT TOLERANCE\n");
-			return len;
-		case (2):
 			PMO_OLD_EAGER_FAULT_TOLERANCE();
 			printk (KERN_INFO "OLD EAGER FAULT TOLERANCE\n");
 			return len;
-		case (3):
-			PMO_NEW_EAGER_FAULT_TOLERANCE();
-			printk (KERN_INFO "NEW EAGER FAULT TOLERANCE\n");
-			return len;
-		case (4): 
+		// case (3):
+		// 	PMO_NEW_EAGER_FAULT_TOLERANCE();
+		// 	printk (KERN_INFO "NEW EAGER FAULT TOLERANCE\n");
+		// 	return len;
+		case (2): 
 			PMO_ENABLE_DIRTYPAGE_RENAMING();
 			printk (KERN_INFO "Dirty Pages Renaming Enabled\n");
 			return len;
@@ -566,7 +566,7 @@ static ssize_t pmo_fault_tolerance_read(struct file *file, char __user *ubuf,
 {
 	char fault_tolerance_state[256];
 	snprintf(fault_tolerance_state, 30, "%s\n", PMO_NO_FAULT_TOLERANCE() ?
-			"Fault tolerance Disabled\n" : "Fault tolerance Enabled\n");
+			"Fault tolerance Disabled\n" : PMO_IS_DIRTYPAGE_RENAMING() ? "RENAMING is Enabled\n" : "OLD EAGER\n");
 
 	if (*ppos > 0 || count < 30)
 		return 0;

@@ -133,8 +133,19 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
      * found to be dirty. */
     mutex_lock(&vpma->page_mutex);
 
-    if (dirty_ll)
+    if (dirty_ll) {
+        if (PMO_IS_DIRTYPAGE_RENAMING()) {
+            trace_printk("[RENAMING] Call pmem_proxy_init()\n");
+            pmem_proxy_init();
+        }
+
         memcpy_dirtypages(&dirty_ll, vpma);
+
+        if (PMO_IS_DIRTYPAGE_RENAMING()) {
+            trace_printk("[RENAMING] Call pmem_proxy_exit()\n");
+            pmem_proxy_exit();
+        }
+    }
 
     if (update_checksum && PMO_WHOLE_IS_ENABLED() &&
         PMO_IV_IS_ENABLED())
@@ -309,13 +320,26 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
     {
         if (!PMO_PAGE_IS_DESTROYED(vpma, cursor->pagenum))
         {
-            pmo_handle_memcpy_sync(req, vpma, cursor->pagenum, local_iv,
+            if (PMO_IS_DIRTYPAGE_RENAMING()) {
+                async_persist_page(req, vpma,
+                    cursor->pagenum, local_iv,
+                    &cursor->sg_primary,
+                    &cursor->sg_shadow,
+                    (PMO_DRAM_IS_ENABLED() &&
+                    !PMO_DRAM_AS_BUFFER_IS_ENABLED())
+                        ? &cursor->sg_working
+                        : NULL);
+            }
+            else {
+                pmo_handle_memcpy_sync(req, vpma, cursor->pagenum, local_iv,
                                    &cursor->sg_primary,
                                    &cursor->sg_shadow,
                                    (PMO_DRAM_IS_ENABLED() &&
                                     !PMO_DRAM_AS_BUFFER_IS_ENABLED())
                                        ? &cursor->sg_working
                                        : NULL);
+        
+            }
         }
         else
         {

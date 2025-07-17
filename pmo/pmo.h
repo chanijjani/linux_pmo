@@ -880,8 +880,12 @@ struct pmo_settings {
 
 
 
-#define PMO_NO_FAULT_TOLERANCE() \
+#define PMO_SET_NO_FAULT_TOLERANCE() \
 	(header->this.settings.pmo_fault_tolerance_mode = NO_FAULT_TOLERANCE)
+
+#define PMO_IS_NO_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode == NO_FAULT_TOLERANCE)
+
 
 // #define PMO_LAZY_FAULT_TOLERANCE() \
 // 	(header->this.settings.pmo_fault_tolerance_mode == LAZY)

@@ -2,7 +2,7 @@
 VERSION = 5
 PATCHLEVEL = 15
 SUBLEVEL = 167
-EXTRAVERSION = -derrick-pmo
+EXTRAVERSION = -derrick-pmo+
 NAME = Trick or Treat
 
 # *DOCUMENTATION*

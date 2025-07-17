@@ -399,7 +399,7 @@ static ssize_t pmo_fault_tolerance_write(struct file *filp, const char *buff,
 
 	switch (fault_tolerance_design) {
 		case (0):
-			PMO_NO_FAULT_TOLERANCE();
+			PMO_SET_NO_FAULT_TOLERANCE();
 			printk (KERN_INFO "FAULT TOLERANCE Disabled\n");
 			return len;
 		// case (1):
@@ -416,7 +416,7 @@ static ssize_t pmo_fault_tolerance_write(struct file *filp, const char *buff,
 		// 	return len;
 		case (2): 
 			PMO_ENABLE_DIRTYPAGE_RENAMING();
-			printk (KERN_INFO "Dirty Pages Renaming Enabled\n");
+			printk (KERN_INFO "Dirty Pages Renaming Enabled....returning %d\n", PMO_IS_DIRTYPAGE_RENAMING());
 			return len;
 		default:
 			printk (KERN_WARNING "Unknown mode %ld\n",
@@ -565,8 +565,9 @@ static ssize_t pmo_fault_tolerance_read(struct file *file, char __user *ubuf,
 	size_t count, loff_t *ppos)
 {
 	char fault_tolerance_state[256];
-	snprintf(fault_tolerance_state, 30, "%s\n", PMO_NO_FAULT_TOLERANCE() ?
+	snprintf(fault_tolerance_state, 30, "%s\n", PMO_IS_NO_FAULT_TOLERANCE() ?
 			"Fault tolerance Disabled\n" : PMO_IS_DIRTYPAGE_RENAMING() ? "RENAMING is Enabled\n" : "OLD EAGER\n");
+
 
 	if (*ppos > 0 || count < 30)
 		return 0;

@@ -20,7 +20,8 @@
 
 
 struct proc_dir_entry *pmo_proc_entry, *pmo_dram_entry, *pmo_pred_entry, *pmo_depth_entry,
-		      *pmo_debug_entry, *pmo_access_entry, *pmo_emulate_cxl_entry = PMO_LOCAL;
+		      *pmo_debug_entry, *pmo_access_entry, *pmo_emulate_cxl_entry = PMO_LOCAL,
+			  *pmo_async_checksum_entry, *pmo_fault_tolerance_entry = NO_FAULT_TOLERANCE;
 enum access_type pmo_access_mode = DAX;
 
 SYSCALL_DEFINE5(attach, char __user *, path, unsigned, access_type,
@@ -91,8 +92,8 @@ SYSCALL_DEFINE5(attach, char __user *, path, unsigned, access_type,
 		do_create(name, size_or_flags, key_buf);
 		pmo_stats_stop_create_time(&mm->pmo_stats);
 
-		trace_printk("PMO_WHOLE_IS_ENABLED(): %d,  PMO_IV_IS_ENABLED(): %d,  Create_start: %llu, end: %llu\n",
-			PMO_WHOLE_IS_ENABLED(), PMO_IV_IS_ENABLED(), mm->pmo_stats.createtime_start,
+		trace_printk("PMO_WHOLE_IS_ENABLED(): %d,  PMO_ASYNC_CHECKSUM_IS_ENABLED(): %d, PMO_IV_IS_ENABLED(): %d,  Create_start: %llu, end: %llu\n",
+			PMO_WHOLE_IS_ENABLED(), PMO_ASYNC_CHECKSUM_IS_ENABLED(), PMO_IV_IS_ENABLED(), mm->pmo_stats.createtime_start,
 			mm->pmo_stats.createtime);
 
 		return 0;

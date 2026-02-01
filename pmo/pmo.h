@@ -106,7 +106,7 @@ extern char ZEROED_PAGE[PAGE_SIZE];
 void pmo_proc_init(void);
 extern struct proc_dir_entry *pmo_proc_entry, *pmo_dram_entry,
        *pmo_pred_entry, *pmo_depth_entry, *pmo_debug_entry,
-       *pmo_access_entry, *pmo_emulate_cxl_entry;
+       *pmo_access_entry, *pmo_emulate_cxl_entry, *pmo_async_checksum_entry, *pmo_fault_tolerance_entry;
 
 /* END PROC */
 
@@ -191,6 +191,8 @@ struct vpma_area_struct {
 	        volatile long unsigned int flag;
 		
 		bool page_in_buffer;
+	
+		struct task_struct *verify_thread;
 	} *working_data;
 
 	/* I heard you like structs, so I nested a struct within a union within a
@@ -246,6 +248,11 @@ struct vpma_area_struct {
 
 #ifdef CONFIG_PMO_NONBLOCKING
 	struct task_struct *disable_thread;
+#endif
+
+
+#ifdef CONFIG_PMO_NONBLOCKING_CHECKSUM_SYNC
+	struct task_struct *checksum_sync_thread;
 #endif
 
 	struct mutex *lock_page;
@@ -408,6 +415,8 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 	(x)->attachtime_memcpy_start = ktime_get_ns()
 
 /* Stop attach time stuff */
+#define pmo_stats_stop_attachtime_end(x) \
+	(x)->attachtime_end = ktime_get_ns()
 
 #define pmo_stats_stop_attachtime_other(x) { \
 	(x)->attachtime_other += ktime_get_ns() - (x)->attachtime_other_start; \
@@ -460,6 +469,13 @@ void pmo_dump_stats(struct pmo_stats_struct stats);
 #define pmo_stats_stop_fault_time(x, tick, tock) \
 	*tock = ktime_get_ns(); \
 	atomic64_add(*tock - *tick, &(x)->faulttime)
+
+#define pmo_stats_sum_ring_buffer(x, y) \
+	do { \
+		(x)->num_ring_buffer_push += 1; \
+		(x)->sum_ring_buffer_size += (y); \
+		(x)->max_ring_buffer_size = ((y) > (x)->max_ring_buffer_size ? (y) : (x)->max_ring_buffer_size); \
+	} while (0)
 
 #define pmo_init_timing_info(x) \
 	(x)->psynctime_other_start = 0; \
@@ -669,12 +685,16 @@ enum IVType {NONE, PSYNC, DETACH};
 enum pred_type {NONE_PRED, STREAM, MARKOV, STRIDE};
 enum access_type {DAX, BLOCK};
 enum cxl_type {PMO_LOCAL, PMO_FAR};
+enum fault_tolerance_type {NO_FAULT_TOLERANCE, //LAZY, 
+							OLD_EAGER, // NEW_EAGER,
+							 DIRTYPAGE_RENAMING};
 extern enum access_type pmo_access_mode;
 struct pmo_settings {
 	enum encryption_type enc_mode;
 	enum IVType iv_type;
 	enum pred_type pred;
 	enum cxl_type pmo_cxl_emulation_mode;
+	enum fault_tolerance_type pmo_fault_tolerance_mode;
 	
 	bool dram,
 	     dram_predictahead,
@@ -682,6 +702,7 @@ struct pmo_settings {
 	     dram_as_buffer,
 	     debug,
 	     paranoid;
+	int async_checksum;
 
 	char depth;
 };
@@ -694,6 +715,21 @@ struct pmo_settings {
 
 #define PMO_DEBUG_MODE_IS_ENABLED() \
 	header->this.settings.debug
+
+#define PMO_ASYNC_CHECKSUM_IS_ENABLED() \
+	(header->this.settings.async_checksum > 0)
+
+// #define PMO_ENABLE_ASYNC_CHECKSUM() \
+// 	header->this.settings.async_checksum = 1
+
+#define PMO_DISABLE_ASYNC_CHECKSUM() \
+	header->this.settings.async_checksum = 0
+
+#define PMO_GET_ASYNC_WOKRER_NUM() \
+	header->this.settings.async_checksum
+
+#define PMO_SET_ASYNC_CHECKSUM(x) \
+	header->this.settings.async_checksum = x
 
 #define PMO_DISABLE_ENCRYPT_IN_DRAM() \
 	header->this.settings.enc_in_dram = false
@@ -841,8 +877,32 @@ struct pmo_settings {
 
 #define PMO_IV_DETACH_IS_ENABLED() \
 	(header->this.settings.iv_type == DETACH)
-void pmo_get_mode(char *mode);
 
+
+
+#define PMO_SET_NO_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode = NO_FAULT_TOLERANCE)
+
+#define PMO_IS_NO_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode == NO_FAULT_TOLERANCE)
+
+
+// #define PMO_LAZY_FAULT_TOLERANCE() \
+// 	(header->this.settings.pmo_fault_tolerance_mode == LAZY)
+
+#define PMO_OLD_EAGER_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode = OLD_EAGER)
+
+// #define PMO_NEW_EAGER_FAULT_TOLERANCE() \
+// 	(header->this.settings.pmo_fault_tolerance_mode == NEW_EAGER)
+
+#define PMO_ENABLE_DIRTYPAGE_RENAMING() \
+	(header->this.settings.pmo_fault_tolerance_mode = DIRTYPAGE_RENAMING)
+
+#define PMO_IS_DIRTYPAGE_RENAMING() \
+	(header->this.settings.pmo_fault_tolerance_mode == DIRTYPAGE_RENAMING)
+
+void pmo_get_mode(char *mode);
 
 
 struct pmo_header_s {
@@ -964,9 +1024,13 @@ int enable_vpma_access(struct vpma_area_struct *vpma, __u64 size,
 int disable_vpma_access(struct vpma_area_struct *vpma);
 #ifdef CONFIG_PMO_NONBLOCKING
 void nonblocking_disable_vpma_access(struct vpma_area_struct *vpma);
+void nonblocking_verify_fault(struct vpma_area_struct *vpma,
+		unsigned long pagenum);
 void pmo_initialize_detach_thread(struct vpma_area_struct *vpma);
+void pmo_initialize_verify_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_decryptahead_thread(struct vpma_area_struct *vpma);
 void pmo_run_decryptahead_thread(struct vpma_area_struct *vpma);
+void pmo_cleanup_verify_workers(void);
 #else
 #define nonblocking_disable_vpma_access(idx)
 #define pmo_initialize_detach_thread(vpma)
@@ -1372,7 +1436,7 @@ void get_sha256_hash(void *ret, void *data, size_t size);
 void pmo_obtain_shadow_hash(struct vpma_area_struct *vpma, size_t page_offset);
 
 void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
-		void *decrypted_data, size_t page_offset);
+		void *decrypted_data, size_t page_offset, bool is_async);
 void pmo_assign_primary_hash(struct vpma_area_struct *vpma,
 		size_t page_offset);
 void vpma_set_sha_ranges(struct vpma_area_struct *vpma);
@@ -1421,4 +1485,9 @@ long long int pmo_decide_best_stride(struct vpma_area_struct *vpma, long long in
 	vpma->working_data[pagenum].page_in_buffer
 #endif
 
-
+void pmem_proxy_init(void);
+int async_persist_page(struct skcipher_request *req,
+    struct vpma_area_struct *vpma, size_t pagenum, char *local_iv,
+    struct scatterlist *sg_primary, struct scatterlist *sg_shadow,
+    struct scatterlist *sg_working);
+void pmem_proxy_exit(void);

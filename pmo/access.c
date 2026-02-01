@@ -78,17 +78,19 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 	struct vpma_area_struct *vpma;
 	size_t length = (size == 0 ? pmo->size_in_pages * PAGE_SIZE : size);
 
-	printk("Current flags for PMO is %lX\n", flags);
+	char mode[20];
+	pmo_get_mode(mode);
+	printk("Attach flags for PMO is %lX, Async: %d, PMO MODE: [%s]\n", flags, PMO_GET_ASYNC_WOKRER_NUM(), mode);
 	
 	name = _build_pmo_name(pmo->name, size, page_offset);
 
 	pmo_stats_start_attachtime_other(&mm->pmo_stats);
-	trace_printk("[Attach_Total_start: %lld]", mm->pmo_stats.attachtime_other_start);
+	trace_printk("[Attach_Total_start: %lld]\n", mm->pmo_stats.attachtime_other_start);
 
 	vpma = vpma_search(&(mm->pmo_rb), name);
 
 	pmo_stats_start_attachtime_wait(&mm->pmo_stats);
-	trace_printk("[Attach_wait_start: %lld]", mm->pmo_stats.attachtime_wait_start);
+	trace_printk("[Attach_wait_start: %lld]\n", mm->pmo_stats.attachtime_wait_start);
 
 	if (vpma)
 		down_write(&vpma->pm_sem);
@@ -98,13 +100,13 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 		*/
 
 	pmo_stats_stop_attachtime_wait(&mm->pmo_stats);
-	trace_printk("[Attach_wait_elapsed: %lld]", mm->pmo_stats.attachtime_wait);
+	trace_printk("[Attach_wait_elapsed: %lld]\n", mm->pmo_stats.attachtime_wait);
 
 	/* Check if we need to recover anything. Don't recover a new PMO */
 	if (!pmo_bit_is_set(6, pmo) && pmo->state && pmo->state != 1) {
 		if (recover (pmo, prot_type, key) == -1) {
 			pmo_stats_stop_attachtime_other(&mm->pmo_stats);
-			trace_printk("[Attach_wait_elapsed: %lld]", mm->pmo_stats.attachtime_wait);
+			trace_printk("[Attach_wait_elapsed: %lld]\n", mm->pmo_stats.attachtime_wait);
 			return NULL; /* Bail out */
 		}
 	}
@@ -135,16 +137,18 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 	 if(enable_vpma_access(vpma, length, PAGE_SIZE * page_offset, prot_type, key)) {
 		 printk(KERN_WARNING "Enable VPMA access failed!\n");
 		pmo_stats_stop_attachtime_other(&mm->pmo_stats);
-		trace_printk("[Attach_Total_elapsed: %lld]", mm->pmo_stats.attachtime_other);
+		trace_printk("[Attach_Total_elapsed: %lld]\n", mm->pmo_stats.attachtime_other);
 		return 0;
 	 }
 
 	 kvfree(name);
 
 	 pmo_stats_stop_attachtime_other(&mm->pmo_stats);
-	 trace_printk("[Attach_Total_elapsed: %lld]", mm->pmo_stats.attachtime_other);
+	 trace_printk("[Attach_Total_elapsed: %lld]\n", mm->pmo_stats.attachtime_other);
 
 	 pmo_update_metadata(vpma);
+	 pmo_stats_stop_attachtime_end(&mm->pmo_stats);
+
 	 return (void *) vpma->vma->vm_start;
 
 }
@@ -193,8 +197,11 @@ int enable_vpma_access(struct vpma_area_struct *vpma, __u64 size,
 			
 		vpma->current_mm = current->mm;
 
-		if (PMO_PRED_IS_ENABLED() || PMO_DRAM_IS_ENABLED()) {
-			vpma->working_data = kvmalloc (size/PAGE_SIZE * sizeof (struct working_page), GFP_KERNEL);
+		if (PMO_PRED_IS_ENABLED() || PMO_IV_IS_ENABLED() || PMO_DRAM_IS_ENABLED()) {
+			vpma->working_data = 
+				kvmalloc (size/PAGE_SIZE * sizeof (struct working_page),
+						GFP_KERNEL);
+			pmo_initialize_verify_thread(vpma);
 			for (i = 0; i < size/PAGE_SIZE; i++)  {
 				/*
 				vpma->working_data[i].phys_addr = 0;
@@ -305,6 +312,12 @@ int do_detach(struct mm_struct *mm, char *path)
 		return -ENOENT;
 	}
 
+	if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
+		trace_printk("Clean up verification workers.\n");
+		// FIXME: Handle the below line correctly
+		// pmo_cleanup_verify_workers();
+	}
+
 	pmo = vpma->pmo_ptr;
 
 	if(unlikely(!pmo)){
@@ -315,7 +328,7 @@ int do_detach(struct mm_struct *mm, char *path)
 	mm->pmo_stats.all_pages += pmo->size_in_pages;
 
 	pmo_stats_start_detach_time(&mm->pmo_stats);
-	trace_printk("[Detach_start: %lld]", mm->pmo_stats.detachtime_start);
+	trace_printk("[Detach_start: %lld]\n", mm->pmo_stats.detachtime_start);
 
 	down_write(&vpma->pm_sem);
         vma->vm_flags &= ~(VM_READ|VM_WRITE|VM_EXEC);
@@ -327,7 +340,7 @@ int do_detach(struct mm_struct *mm, char *path)
 		disable_vpma_access(vpma);
 
 	pmo_stats_stop_detach_time(&mm->pmo_stats);
-	trace_printk("[Detach_end: %lld]", mm->pmo_stats.detachtime);
+	trace_printk("[Detach_end: %lld]\n", mm->pmo_stats.detachtime);
 
 	return 0;
 }

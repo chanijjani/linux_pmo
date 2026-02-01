@@ -318,19 +318,25 @@ handle_page_destroyed:
 
 out2:
 
-	if (PMO_IV_IS_ENABLED()) {
+	if (PMO_IV_IS_ENABLED()
+		// && PMO_NOENC_IS_ENABLED()
+		// && (PMO_OLD_EAGER_FAULT_TOLERANCE()
+		// 		|| PMO_NEW_EAGER_FAULT_TOLERANCE()
+		// 		|| PMO_ENABLE_DIRTYPAGE_RENAMING())) {
+	){
 		/* Check whether hash matches stored hash */
-		handle_pmo_hash_identical(vpma, vpma->shadow + pagenum * PAGE_SIZE,
-			pagenum);
+	    if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
+			trace_printk("Async Checksum Verification, # of Workers = %d\n", PMO_GET_ASYNC_WOKRER_NUM());
+			nonblocking_verify_fault(vpma, pagenum);
+		} else {
+			handle_pmo_hash_identical(vpma,
+					vpma->shadow + pagenum * PAGE_SIZE,
+					pagenum, false);
+		}
 	}
 
 	pmo_stats_stop_fault_time(&mm->pmo_stats, &tick, &tock);
-	// if (tock - tick > 0) {
-	// 	printk("[fault_start_time: %llu,  fault_end_time: %llu, elapsed = %llu], PMO_IV_IS_ENABLED() = %d\n",
-	// 		tick, tock, tock - tick, PMO_IV_IS_ENABLED());
-	// 	trace_printk("[fault_start_time: %llu,  fault_end_time: %llu, elapsed = %llu]\n",
-	// 		tick, tock, tock - tick);
-	// }
+
 	PMO_PAGE_UNLOCK(vpma, offset/PAGE_SIZE);
 
 	/* Return the entry in the list if it's not mapped and we have not

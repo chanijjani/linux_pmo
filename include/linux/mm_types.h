@@ -430,7 +430,7 @@ struct pmo_stats_struct {
 
 		/* TIME */
 		psynctime_other, psynctime_encrypt, page_encrypt,
-		attachtime_wait, attachtime_iv, attachtime_other,
+		attachtime_end, attachtime_wait, attachtime_iv, attachtime_other,
 		attachtime_decrypt, attachtime_memcpy,
 		detachtime,createtime,
 		creationtimehandling,
@@ -438,7 +438,8 @@ struct pmo_stats_struct {
 		attach_waits, waiting_time, decryptaheadtime_start, decryptaheadtime,
 
 		/* page stats */
-		all_pages, pages_dirtied;
+		all_pages, pages_dirtied,
+		num_ring_buffer_push, max_ring_buffer_size, sum_ring_buffer_size;
 
 
 	atomic64_t

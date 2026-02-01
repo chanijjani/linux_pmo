@@ -113,7 +113,8 @@ void pmo_handle_page_shadow(struct vpma_area_struct *vpma, size_t offset)
 
 	/* Perform verification now */
 	if (PMO_PPs_IS_ENABLED() && PMO_IV_DETACH_IS_ENABLED())
-		handle_pmo_hash_identical(vpma, primary, offset/PAGE_SIZE);
+		handle_pmo_hash_identical(vpma, primary, offset/PAGE_SIZE,
+				PMO_ASYNC_CHECKSUM_IS_ENABLED());
 
         wait_for_completion(&wait);
 
@@ -123,7 +124,8 @@ void pmo_handle_page_shadow(struct vpma_area_struct *vpma, size_t offset)
         skcipher_request_free(req);
 
 	if (PMO_IV_IS_ENABLED() && !(PMO_PPs_IS_ENABLED() && PMO_IV_DETACH_IS_ENABLED()))
-        	handle_pmo_hash_identical(vpma, shadow, offset/PAGE_SIZE);
+        	handle_pmo_hash_identical(vpma, shadow, offset/PAGE_SIZE,
+				PMO_ASYNC_CHECKSUM_IS_ENABLED());
 
         return;
 

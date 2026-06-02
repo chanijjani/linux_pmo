@@ -1,8 +1,8 @@
 /*************************************************************************** 
- * Copyright (C) 2021-2023 Derrick Greenspan and the University of Central *
- * Florida (UCF).                                                          *
+ * Copyright (C) 2021-2026 Derrick Greenspan, Chanhee Lee, and the         *
+ * University of Central Florida (UCF).                                    *
  ***************************************************************************
- * PMO Header								   *
+ * PMO Header															   *
  ***************************************************************************/
 
 #ifndef __PMO_HEADER__
@@ -102,11 +102,16 @@ extern union pmo_header *header;
 
 extern char ZEROED_PAGE[PAGE_SIZE];
 
+/* Pre-allocated SHA-256 transform handle (see perpage/checksum.c) */
+extern struct crypto_shash *pmo_shash_tfm;
+
 /* PROC */
 void pmo_proc_init(void);
+void pmo_proc_stats_init(struct proc_dir_entry *dir);
 extern struct proc_dir_entry *pmo_proc_entry, *pmo_dram_entry,
        *pmo_pred_entry, *pmo_depth_entry, *pmo_debug_entry,
-       *pmo_access_entry, *pmo_emulate_cxl_entry, *pmo_async_checksum_entry, *pmo_fault_tolerance_entry;
+       *pmo_access_entry, *pmo_emulate_cxl_entry, *pmo_async_checksum_entry,
+       *pmo_fault_tolerance_entry, *pmo_stats_entry;
 
 /* END PROC */
 
@@ -1423,6 +1428,7 @@ struct pmo_sha256 {
 
 void init_sha256_region(size_t start, size_t end);
 void pmo_initialize_checksum(void);
+void pmo_cleanup_checksum(void);
 void pmo_init_empty_hash(void);
 void pmo_get_page_hash(void *ret, void *data);
 void pmo_handle_hash_psync(void *addr);

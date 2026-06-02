@@ -1,6 +1,6 @@
 /*****************************************************************************
- * Copyright (C) 2020 - 2023 Derrick Greenspan and the University of Central *
- * Florida (UCF)							     *
+ * Copyright (C) 2020 - 2026 Derrick Greenspan, Chanhee Lee, and the         *
+ * University of Central Florida (UCF)					     *
  *****************************************************************************
  * PMO Checksum calculation						     *
  *****************************************************************************/
@@ -13,6 +13,11 @@
 char *PMO_EMPTY_CHECKSUM;
 struct pmo_sha256 *sha256_region;
 
+/* Pre-allocated SHA-256 transform handle, shared across all verification
+ * calls. crypto_shash (the algorithm handle) is safe to share across
+ * threads; per-call state lives in the shash_desc allocated by calc_hash(). */
+struct crypto_shash *pmo_shash_tfm;
+
 void pmo_obtain_shadow_hash(struct vpma_area_struct *vpma, size_t pagenum)
 {
         size_t shadow_sha_offset;
@@ -21,8 +26,8 @@ void pmo_obtain_shadow_hash(struct vpma_area_struct *vpma, size_t pagenum)
         shadow_sha_offset = pmo_address_to_sha_offset(vpma->phys_shadow) + pagenum;
 
 	/* It will be encrypted if detach and pps are true */
-        pmo_get_page_hash(OFFSET_TO_SHA(shadow_sha_offset), 
-			((PMO_IV_DETACH_IS_ENABLED() && PMO_PPs_IS_ENABLED()) ? 
+        pmo_get_page_hash(OFFSET_TO_SHA(shadow_sha_offset),
+			((PMO_IV_DETACH_IS_ENABLED() && PMO_PPs_IS_ENABLED()) ?
 			vpma->primary : vpma->shadow) + pagenum * PAGE_SIZE);
 
         pmo_barrier();
@@ -36,32 +41,49 @@ void pmo_assign_primary_hash(struct vpma_area_struct *vpma, size_t pagenum)
 	BUG_ON(!PMO_IV_IS_ENABLED());
         memcpy_flushcache(OFFSET_TO_SHA(primary_sha_offset),
                         OFFSET_TO_SHA(shadow_sha_offset), 32);
-        //pmo_sync(OFFSET_TO_SHA(primary_sha_offset), 32);
         pmo_barrier();
         return;
 }
 
+/* Compute SHA-256 of a 4 KB PMO page and write the digest to ret.
+ * Uses the module-level pre-allocated transform to avoid per-call
+ * crypto_alloc_shash overhead (which dominated measured verification cost). */
 void pmo_get_page_hash(void *ret, void *data)
 {
-        struct crypto_shash *alg = crypto_alloc_shash("sha256", 0, 0);
-        char *digest = kvcalloc(sizeof(char), 32, GFP_KERNEL);
-        if(IS_ERR(alg))
-                printk("Could not allocate algorithm");
+        char digest[32];
 
-        calc_hash(alg, data, PAGE_SIZE, digest);
+        if (unlikely(IS_ERR_OR_NULL(pmo_shash_tfm))) {
+                printk(KERN_ERR "pmo_shash_tfm not initialized\n");
+                return;
+        }
+
+        calc_hash(pmo_shash_tfm, data, PAGE_SIZE, digest);
         memcpy_flushcache(ret, digest, 32);
-        kvfree(alg);
-        kvfree(digest);
         return;
 }
-
-char *PMO_EMPTY_CHECKSUM;
-struct pmo_sha256 *sha256_region;
 
 void pmo_initialize_checksum(void)
 {
         PMO_EMPTY_CHECKSUM = kcalloc(sizeof(char), 32, GFP_KERNEL);
         memset(PMO_EMPTY_CHECKSUM, 0xFF, 32);
+
+        pmo_shash_tfm = crypto_alloc_shash("sha256", 0, 0);
+        if (IS_ERR(pmo_shash_tfm)) {
+                printk(KERN_ERR "PMO: could not allocate SHA-256 tfm: %ld\n",
+                       PTR_ERR(pmo_shash_tfm));
+                pmo_shash_tfm = NULL;
+        }
+        return;
+}
+
+void pmo_cleanup_checksum(void)
+{
+        if (pmo_shash_tfm) {
+                crypto_free_shash(pmo_shash_tfm);
+                pmo_shash_tfm = NULL;
+        }
+        kfree(PMO_EMPTY_CHECKSUM);
+        PMO_EMPTY_CHECKSUM = NULL;
         return;
 }
 

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2022-2023 Derrick Greenspan and the University of Central 
- * Florida (UCF).                                                           
+ * Copyright (C) 2022-2026 Derrick Greenspan, Chanhee Lee and the University
+ * of Central Florida (UCF).                                                           
  *
  * WARNING: THIS SOFTWARE HAS THE POTENTIAL TO DESTROY DATA. It is          
  * distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
@@ -18,17 +18,16 @@
 
 void get_sha256_hash(void *ret, void *data, size_t size)
 {
-          struct crypto_shash *alg;
           char digest[32];
 	  if(!(PMO_WHOLE_IS_ENABLED() && PMO_IV_IS_ENABLED()))
 		return;
 
-          alg = crypto_alloc_shash("sha256", 0, 0);
-          if(IS_ERR(alg))
-                  printk("Could not allocate algorithm");
+          if (unlikely(IS_ERR_OR_NULL(pmo_shash_tfm))) {
+                  printk(KERN_ERR "pmo_shash_tfm not initialized\n");
+                  return;
+          }
 
-          calc_hash(alg, data, size, digest);
+          calc_hash(pmo_shash_tfm, data, size, digest);
           memcpy_flushcache(ret, digest, 32);
-          kvfree(alg);
           return;
 }

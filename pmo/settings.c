@@ -1,6 +1,14 @@
+/*****************************************************************************
+ * Copyright (C) 2020 - 2026 Derrick Greenspan, Chanhee Lee, and the         *
+ * University of Central Florida (UCF)					     				 *
+ *****************************************************************************
+ * PMO Setting															     *
+ *****************************************************************************/
+
 #include "pmo.h"
 #include <linux/mm_types.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 
 void pmo_set_mode (char *mode)
 {
@@ -636,5 +644,68 @@ void pmo_proc_init(void)
 	pmo_emulate_cxl_entry = proc_create("cxl_emulation", 0660, dir, &pmo_emulate_cxl_fops);
 	pmo_async_checksum_entry = proc_create("async_checksum", 0660, dir, &pmo_async_checksum_fops);
 	pmo_fault_tolerance_entry = proc_create("fault_tolerance", 0660, dir, &pmo_fault_tolerance_fops);
+	pmo_proc_stats_init(dir);
 	return;
+}
+
+/* /proc/pmo/stats — per-process page-fault timing breakdown.
+ * Exposes avg_pf_ns, avg_pm_access_ns, avg_page_iv_ns, verification_pct
+ * so userspace benchmarks can read verification overhead directly without
+ * parsing dmesg.  Write any byte to reset the per-process counters. */
+
+struct proc_dir_entry *pmo_stats_entry;
+
+static int pmo_stats_show(struct seq_file *m, void *v)
+{
+	struct pmo_stats_struct *s = &current->mm->pmo_stats;
+	unsigned long long faulttime = atomic64_read(&s->faulttime);
+	unsigned long long page_iv   = atomic64_read(&s->page_iv);
+	unsigned long long pages     = s->pages_touched;
+	unsigned long long pm_access = (faulttime > page_iv) ?
+				       faulttime - page_iv : 0;
+	unsigned long long ratio_pct = faulttime > 0 ?
+				       page_iv * 100 / faulttime : 0;
+
+	seq_printf(m, "pages_touched %llu\n",    pages);
+	seq_printf(m, "avg_pf_ns %llu\n",
+		   pages > 0 ? faulttime / pages : 0);
+	seq_printf(m, "total_faulttime_ns %llu\n",  faulttime);
+	seq_printf(m, "total_page_iv_ns %llu\n",    page_iv);
+	seq_printf(m, "pm_access_ns %llu\n",         pm_access);
+	seq_printf(m, "verification_pct %llu\n",     ratio_pct);
+	seq_printf(m, "avg_pm_access_ns %llu\n",
+		   pages > 0 ? pm_access / pages : 0);
+	seq_printf(m, "avg_page_iv_ns %llu\n",
+		   pages > 0 ? page_iv / pages : 0);
+	return 0;
+}
+
+static int pmo_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, pmo_stats_show, NULL);
+}
+
+static ssize_t pmo_stats_write(struct file *filp, const char __user *buf,
+			       size_t len, loff_t *off)
+{
+	struct pmo_stats_struct *s = &current->mm->pmo_stats;
+	atomic64_set(&s->faulttime, 0);
+	atomic64_set(&s->page_iv,   0);
+	s->pages_touched    = 0;
+	s->psynctime_other  = 0;
+	atomic64_set(&s->psynctime_iv, 0);
+	return len;
+}
+
+static const struct proc_ops pmo_stats_fops = {
+	.proc_open    = pmo_stats_open,
+	.proc_read    = seq_read,
+	.proc_write   = pmo_stats_write,
+	.proc_lseek   = seq_lseek,
+	.proc_release = single_release,
+};
+
+void pmo_proc_stats_init(struct proc_dir_entry *dir)
+{
+	pmo_stats_entry = proc_create("stats", 0660, dir, &pmo_stats_fops);
 }

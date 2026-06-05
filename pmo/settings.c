@@ -238,6 +238,31 @@ static ssize_t pmo_asnyc_checksum_write(struct file *filp, const char *buff,
 	return len;
 }
 
+static ssize_t pmo_checksum_batch_size_write(struct file *filp, const char *buff,
+		size_t len, loff_t *off)
+{
+	char batch_type[30];
+	int batch_size;
+	if(copy_from_user(batch_type, buff, len) != 0)
+		printk(KERN_WARNING "Copy from user for checksum batch size write failed!\n");
+
+	batch_type[1] = 0;
+
+	if (kstrtoint(batch_type, 0, &batch_size)) {
+		printk(KERN_WARNING "Could not set unknown batch size %s\n", batch_type);
+		return len;
+	}
+
+	if (batch_size < 1) {
+		printk(KERN_WARNING "Batch size must be at least 1\n");
+	}
+	else {
+		PMO_SET_CHECKSUM_BATCH_SIZE(batch_size);
+		printk(KERN_INFO "Set checksum batch size to %d\n", batch_size);
+	};
+	return len;
+}
+
 static ssize_t pmo_emulate_cxl_write(struct file *filp, const char *buff,
 		size_t len, loff_t *off)
 {
@@ -470,6 +495,22 @@ static ssize_t pmo_async_checksum_read(struct file *file, char __user *ubuf,
 	return -1;
 }
 
+static ssize_t pmo_checksum_batch_size_read(struct file *file, char __user *ubuf,
+		size_t count, loff_t *ppos)
+{
+	char batch_type[30];
+	if (*ppos > 0 || count < 30)
+		return 0;
+
+	sprintf(batch_type, "%d\n", PMO_GET_CHECKSUM_BATCH_SIZE());
+
+	if (copy_to_user(ubuf, batch_type, 30) == 0) {
+		*ppos = strlen(batch_type);
+		return (strlen(batch_type));
+	}
+	return -1;
+}
+
 static ssize_t pmo_emulate_cxl_read(struct file *file, char __user *ubuf,
 		size_t count, loff_t *ppos)
 {
@@ -627,10 +668,17 @@ static struct proc_ops pmo_async_checksum_fops = {
 	.proc_write = pmo_asnyc_checksum_write,
 };
 
+static struct proc_ops pmo_checksum_batch_size_fops = {
+	.proc_read = pmo_checksum_batch_size_read,
+	.proc_write = pmo_checksum_batch_size_write,
+};
+
 static struct proc_ops pmo_fault_tolerance_fops = {
 	.proc_read = pmo_fault_tolerance_read,
 	.proc_write = pmo_fault_tolerance_write,
 };
+
+struct proc_dir_entry *pmo_checksum_batch_size_entry;
 
 void pmo_proc_init(void)
 {
@@ -643,6 +691,7 @@ void pmo_proc_init(void)
 	pmo_access_entry = proc_create("access", 0660, dir, &access_fops);
 	pmo_emulate_cxl_entry = proc_create("cxl_emulation", 0660, dir, &pmo_emulate_cxl_fops);
 	pmo_async_checksum_entry = proc_create("async_checksum", 0660, dir, &pmo_async_checksum_fops);
+	pmo_checksum_batch_size_entry = proc_create("checksum_batch_size", 0660, dir, &pmo_checksum_batch_size_fops);
 	pmo_fault_tolerance_entry = proc_create("fault_tolerance", 0660, dir, &pmo_fault_tolerance_fops);
 	pmo_proc_stats_init(dir);
 	return;

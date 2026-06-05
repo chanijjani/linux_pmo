@@ -313,6 +313,7 @@ int do_detach(struct mm_struct *mm, char *path)
 	}
 
 	if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
+		pmo_flush_verify_batch(vpma);
 		trace_printk("Clean up verification workers.\n");
 		// FIXME: Handle the below line correctly
 		// pmo_cleanup_verify_workers();

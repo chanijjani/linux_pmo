@@ -200,6 +200,9 @@ struct vpma_area_struct {
 		struct task_struct *verify_thread;
 	} *working_data;
 
+	struct checksum_work *active_verify_batch;
+	spinlock_t verify_batch_lock;
+
 	/* I heard you like structs, so I nested a struct within a union within a
 	 * struct inside another struct. */
 	struct pmo_markov_table 
@@ -708,6 +711,7 @@ struct pmo_settings {
 	     debug,
 	     paranoid;
 	int async_checksum;
+	int checksum_batch_size;
 
 	char depth;
 };
@@ -735,6 +739,12 @@ struct pmo_settings {
 
 #define PMO_SET_ASYNC_CHECKSUM(x) \
 	header->this.settings.async_checksum = x
+
+#define PMO_GET_CHECKSUM_BATCH_SIZE() \
+	header->this.settings.checksum_batch_size
+
+#define PMO_SET_CHECKSUM_BATCH_SIZE(x) \
+	header->this.settings.checksum_batch_size = x
 
 #define PMO_DISABLE_ENCRYPT_IN_DRAM() \
 	header->this.settings.enc_in_dram = false
@@ -1031,6 +1041,7 @@ int disable_vpma_access(struct vpma_area_struct *vpma);
 void nonblocking_disable_vpma_access(struct vpma_area_struct *vpma);
 void nonblocking_verify_fault(struct vpma_area_struct *vpma,
 		unsigned long pagenum);
+void pmo_flush_verify_batch(struct vpma_area_struct *vpma);
 void pmo_initialize_detach_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_verify_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_decryptahead_thread(struct vpma_area_struct *vpma);

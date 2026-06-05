@@ -194,6 +194,8 @@ void pmo_handle_memcpy_sync(struct skcipher_request *req,
 
 void pmo_psync_wait(struct vpma_area_struct *vpma) 
 {
+	pmo_flush_verify_batch(vpma);
+
 	if (PMO_PPs_IS_ENABLED())
 		wait_event(vpma->crypto.encrypt_wq,
 				!atomic_read(&vpma->crypto.encrypted_pages));

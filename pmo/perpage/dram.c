@@ -51,8 +51,12 @@ void pmo_handle_page_prediction_noenc(struct vpma_area_struct *vpma, unsigned lo
 	memcpy(working, primary, PAGE_SIZE);
 
 	/* Perform integrity verification ahead of time */
-	if (PMO_IV_IS_ENABLED())
-		handle_pmo_hash_identical (vpma, primary, pagenum, false);
+	if (PMO_IV_IS_ENABLED()) {
+		if (PMO_ASYNC_CHECKSUM_IS_ENABLED())
+			nonblocking_verify_fault(vpma, pagenum);
+		else
+			handle_pmo_hash_identical (vpma, primary, pagenum, false);
+	}
 
 	/* Unlock page */
 	PMO_PAGE_UNLOCK(vpma, pagenum);
@@ -82,9 +86,12 @@ void _pmo_handle_page_dram_crypto_prediction(struct skcipher_request *req,
 
 	crypto_skcipher_decrypt (req);
 	/* Perform integrity verification ahead of time */
-	if (PMO_IV_IS_ENABLED())
-		handle_pmo_hash_identical (vpma, primary, pagenum,
-				PMO_ASYNC_CHECKSUM_IS_ENABLED());
+	if (PMO_IV_IS_ENABLED()) {
+		if (PMO_ASYNC_CHECKSUM_IS_ENABLED())
+			nonblocking_verify_fault(vpma, pagenum);
+		else
+			handle_pmo_hash_identical (vpma, primary, pagenum, false);
+	}
 
 	return;
 }

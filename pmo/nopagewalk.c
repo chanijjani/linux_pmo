@@ -147,6 +147,8 @@ inline void vpma_init(struct vpma_area_struct *vpma)
         vpma->current_mm = NULL;
         mutex_init(&vpma->psync_mutex);
         mutex_init(&vpma->page_mutex);
+	vpma->active_verify_batch = NULL;
+	spin_lock_init(&vpma->verify_batch_lock);
         return;
 }
 

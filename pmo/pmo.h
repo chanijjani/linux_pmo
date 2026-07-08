@@ -1,8 +1,8 @@
 /*************************************************************************** 
- * Copyright (C) 2021-2023 Derrick Greenspan and the University of Central *
- * Florida (UCF).                                                          *
+ * Copyright (C) 2021-2026 Derrick Greenspan, Chanhee Lee, and the         *
+ * University of Central Florida (UCF).                                    *
  ***************************************************************************
- * PMO Header								   *
+ * PMO Header															   *
  ***************************************************************************/
 
 #ifndef __PMO_HEADER__
@@ -102,11 +102,24 @@ extern union pmo_header *header;
 
 extern char ZEROED_PAGE[PAGE_SIZE];
 
+/* Pre-allocated SHA-256 transform handle (see perpage/checksum.c) */
+extern struct crypto_shash *pmo_shash_tfm;
+
+/* Verification-cost sensitivity knobs (see perpage/checksum.c).
+ * pmo_verify_cost_ns injects a synthetic per-page busy-wait so the
+ * per-page verification cost can be swept as an independent variable;
+ * pmo_hash_algo_name selects the crypto_shash algorithm (digest <= 32 B). */
+extern int pmo_verify_cost_ns;
+extern char pmo_hash_algo_name[32];
+int pmo_set_hash_algo(const char *name);
+
 /* PROC */
 void pmo_proc_init(void);
+void pmo_proc_stats_init(struct proc_dir_entry *dir);
 extern struct proc_dir_entry *pmo_proc_entry, *pmo_dram_entry,
        *pmo_pred_entry, *pmo_depth_entry, *pmo_debug_entry,
-       *pmo_access_entry, *pmo_emulate_cxl_entry, *pmo_async_checksum_entry, *pmo_fault_tolerance_entry;
+       *pmo_access_entry, *pmo_emulate_cxl_entry, *pmo_async_checksum_entry,
+       *pmo_fault_tolerance_entry, *pmo_stats_entry;
 
 /* END PROC */
 
@@ -194,6 +207,9 @@ struct vpma_area_struct {
 	
 		struct task_struct *verify_thread;
 	} *working_data;
+
+	struct checksum_work *active_verify_batch;
+	spinlock_t verify_batch_lock;
 
 	/* I heard you like structs, so I nested a struct within a union within a
 	 * struct inside another struct. */
@@ -703,6 +719,7 @@ struct pmo_settings {
 	     debug,
 	     paranoid;
 	int async_checksum;
+	int checksum_batch_size;
 
 	char depth;
 };
@@ -730,6 +747,18 @@ struct pmo_settings {
 
 #define PMO_SET_ASYNC_CHECKSUM(x) \
 	header->this.settings.async_checksum = x
+
+#define PMO_GET_CHECKSUM_BATCH_SIZE() \
+	header->this.settings.checksum_batch_size
+
+#define PMO_SET_CHECKSUM_BATCH_SIZE(x) \
+	header->this.settings.checksum_batch_size = x
+
+#define PMO_GET_VERIFY_COST_NS() \
+	pmo_verify_cost_ns
+
+#define PMO_SET_VERIFY_COST_NS(x) \
+	(pmo_verify_cost_ns = (x))
 
 #define PMO_DISABLE_ENCRYPT_IN_DRAM() \
 	header->this.settings.enc_in_dram = false
@@ -1026,6 +1055,7 @@ int disable_vpma_access(struct vpma_area_struct *vpma);
 void nonblocking_disable_vpma_access(struct vpma_area_struct *vpma);
 void nonblocking_verify_fault(struct vpma_area_struct *vpma,
 		unsigned long pagenum);
+void pmo_flush_verify_batch(struct vpma_area_struct *vpma);
 void pmo_initialize_detach_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_verify_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_decryptahead_thread(struct vpma_area_struct *vpma);
@@ -1423,6 +1453,7 @@ struct pmo_sha256 {
 
 void init_sha256_region(size_t start, size_t end);
 void pmo_initialize_checksum(void);
+void pmo_cleanup_checksum(void);
 void pmo_init_empty_hash(void);
 void pmo_get_page_hash(void *ret, void *data);
 void pmo_handle_hash_psync(void *addr);

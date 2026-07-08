@@ -282,7 +282,11 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 			 * PMO_CLEAR_WRITE | PMO_CLEAR_READWRITE. In those
 			 * cases, we should verify the page's checksum since
 			 * last psync call */
-			WARN_ON(!PMO_SHOULD_CLEAR_WRITE(vpma) &&
+			/* WARN_ON_ONCE: under WHOLE-mode write-permission clearing
+			 * this can fire repeatedly (e.g. multi-threaded writers
+			 * racing a concurrent psync), and each hit dumps a full
+			 * stack trace. One warning is enough to flag the case. */
+			WARN_ON_ONCE(!PMO_SHOULD_CLEAR_WRITE(vpma) &&
 					!PMO_SHOULD_CLEAR_READWRITE(vpma));
 
 			/* We're faulting on a mapped page, caused by either

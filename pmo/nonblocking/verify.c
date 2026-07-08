@@ -10,6 +10,7 @@ struct checksum_work {
 	struct work_struct work;
 	struct vpma_area_struct *vpma;
 	unsigned long int pagenum;
+	unsigned int num_pages;
 };
 
 static struct workqueue_struct *verify_wq;
@@ -20,11 +21,14 @@ void _checksum_work_func(struct work_struct *work) {
 
 	struct vpma_area_struct * vpma = cwork->vpma;
 	unsigned long int pagenum = cwork->pagenum;
-	void *primary = pagenum * PAGE_SIZE + vpma->primary;
+	unsigned int i;
 
-	trace_printk("[NEW] ASYNC Checksum Verification --> TASK, page_num[%d]\n",
-		pagenum);
-	handle_pmo_hash_identical(vpma, primary, pagenum, true);
+	for (i = 0; i < cwork->num_pages; i++) {
+		void *primary = (pagenum + i) * PAGE_SIZE + vpma->primary;
+		trace_printk("[NEW] ASYNC Checksum Verification --> TASK, page_num[%d] (batch %d/%d)\n",
+			pagenum + i, i + 1, cwork->num_pages);
+		handle_pmo_hash_identical(vpma, primary, pagenum + i, true);
+	}
 
 	kfree(cwork);
 }
@@ -50,17 +54,52 @@ void nonblocking_verify_fault(struct vpma_area_struct *vpma,
 		unsigned long pagenum)
 {
 	int thread_num = PMO_GET_ASYNC_WOKRER_NUM();
+	int batch_size = PMO_GET_CHECKSUM_BATCH_SIZE();
+
 	if (thread_num > 1) {
-		struct checksum_work *cwork = kmalloc(sizeof(*cwork), GFP_KERNEL);
+		unsigned long flags;
+		struct checksum_work *cwork = NULL;
+		bool enqueue_now = false;
+
+		spin_lock_irqsave(&vpma->verify_batch_lock, flags);
+
+		if (batch_size > 1 && vpma->active_verify_batch) {
+			struct checksum_work *active = vpma->active_verify_batch;
+			if (pagenum == active->pagenum + active->num_pages &&
+				active->num_pages < batch_size) {
+				active->num_pages++;
+				spin_unlock_irqrestore(&vpma->verify_batch_lock, flags);
+				return;
+			} else {
+				// Current batch is full or non-contiguous, enqueue it
+				cwork = active;
+				vpma->active_verify_batch = NULL;
+				enqueue_now = true;
+			}
+		}
+
+		if (enqueue_now && cwork) {
+			queue_work(verify_wq, &cwork->work);
+		}
+
+		// Create a new batch or single item
+		cwork = kmalloc(sizeof(*cwork), GFP_ATOMIC); // Use ATOMIC as we are in spinlock
+		if (!cwork) {
+			spin_unlock_irqrestore(&vpma->verify_batch_lock, flags);
+			return;
+		}
 		cwork->vpma = vpma;
 		cwork->pagenum = pagenum;
-
+		cwork->num_pages = 1;
 		INIT_WORK(&cwork->work, _checksum_work_func);
-		trace_printk("[NEW] ASYNC Checksum Verification --> INIT_WORK, page_num[%d]\n",
-			pagenum);
 
-		queue_work(verify_wq, &cwork->work);
-		trace_printk("[NEW] ASYNC Checksum Verification --> queue_work\n");
+		if (batch_size > 1) {
+			vpma->active_verify_batch = cwork;
+			spin_unlock_irqrestore(&vpma->verify_batch_lock, flags);
+		} else {
+			spin_unlock_irqrestore(&vpma->verify_batch_lock, flags);
+			queue_work(verify_wq, &cwork->work);
+		}
 	}
 	else {
 		trace_printk("[OLD] ASYNC Checksum Verification --> Unpark the verify_thread\n");
@@ -68,6 +107,23 @@ void nonblocking_verify_fault(struct vpma_area_struct *vpma,
 	}
 
 	return;
+}
+
+void pmo_flush_verify_batch(struct vpma_area_struct *vpma)
+{
+	unsigned long flags;
+	struct checksum_work *cwork = NULL;
+
+	spin_lock_irqsave(&vpma->verify_batch_lock, flags);
+	if (vpma->active_verify_batch) {
+		cwork = vpma->active_verify_batch;
+		vpma->active_verify_batch = NULL;
+	}
+	spin_unlock_irqrestore(&vpma->verify_batch_lock, flags);
+
+	if (cwork) {
+		queue_work(verify_wq, &cwork->work);
+	}
 }
 
 void pmo_initialize_verify_thread(struct vpma_area_struct *vpma)

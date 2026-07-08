@@ -18,7 +18,10 @@
 
 void get_sha256_hash(void *ret, void *data, size_t size)
 {
-          char digest[32];
+          /* Zero-pad: the 32-byte slot is stored/compared in full, so digests
+           * shorter than 32 B (crc32c/md5/sha1/sha224) must have a deterministic
+           * 0 tail on both store and verify.  See pmo_get_page_hash(). */
+          char digest[32] = { 0 };
 	  if(!(PMO_WHOLE_IS_ENABLED() && PMO_IV_IS_ENABLED()))
 		return;
 

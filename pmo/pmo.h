@@ -105,6 +105,14 @@ extern char ZEROED_PAGE[PAGE_SIZE];
 /* Pre-allocated SHA-256 transform handle (see perpage/checksum.c) */
 extern struct crypto_shash *pmo_shash_tfm;
 
+/* Verification-cost sensitivity knobs (see perpage/checksum.c).
+ * pmo_verify_cost_ns injects a synthetic per-page busy-wait so the
+ * per-page verification cost can be swept as an independent variable;
+ * pmo_hash_algo_name selects the crypto_shash algorithm (digest <= 32 B). */
+extern int pmo_verify_cost_ns;
+extern char pmo_hash_algo_name[32];
+int pmo_set_hash_algo(const char *name);
+
 /* PROC */
 void pmo_proc_init(void);
 void pmo_proc_stats_init(struct proc_dir_entry *dir);
@@ -745,6 +753,12 @@ struct pmo_settings {
 
 #define PMO_SET_CHECKSUM_BATCH_SIZE(x) \
 	header->this.settings.checksum_batch_size = x
+
+#define PMO_GET_VERIFY_COST_NS() \
+	pmo_verify_cost_ns
+
+#define PMO_SET_VERIFY_COST_NS(x) \
+	(pmo_verify_cost_ns = (x))
 
 #define PMO_DISABLE_ENCRYPT_IN_DRAM() \
 	header->this.settings.enc_in_dram = false

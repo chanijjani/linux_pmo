@@ -77,8 +77,7 @@ SYSCALL_DEFINE2(psync, __u64, starting_vma_address, __u64, size)
 
     /* Indicate that we're in the process of persisting the persistent
      * data into the shadow PMO */
-    while (pmo_test_and_lock(2, pmo))
-        ;
+    while (pmo_test_and_lock(2, pmo));
     //	printk(KERN_WARNING "Bit asserted already?");
 
     primary = vpma->primary;
@@ -131,8 +130,7 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
         memcpy_dirtypages(&dirty_ll, vpma);
 
     if (update_checksum && PMO_WHOLE_IS_ENABLED() &&
-        PMO_IV_IS_ENABLED())
-    {
+        PMO_IV_IS_ENABLED()) {
         pmo_stats_start_psynctime_iv(&current->mm->pmo_stats);
 
         get_sha256_hash(sha256hash, vpma->primary, size);
@@ -145,9 +143,7 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
     }
 
     if (IS_ENABLED(CONFIG_PMO_PARANOID_MODE))
-    {
         pmo_destroy_shadow(vpma, vpma->faulted_pages_ll, 0);
-    }
 
     kvfree(dirty_ll);
     mutex_unlock(&vpma->page_mutex);
@@ -274,16 +270,14 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
     char local_iv[16];
     struct pmo_entry *pmo = vpma->pmo_ptr;
 
-    if (PMO_PPs_IS_ENABLED())
-    {
+    if (PMO_PPs_IS_ENABLED()) {
         tfm = pmo_get_tfm(vpma);
         req = skcipher_request_alloc(tfm, GFP_KERNEL);
         memcpy(local_iv, pmo_get_iv(vpma), 16);
     }
+
 	if (!(*dirty_ll) || list_empty(&(*dirty_ll)->list))
-	{
 		printk("Note: No dirty pages to sync.\n");
-	}
 
     /* This is the first point in which the primary is being
      * overwritten, so this is the first point where we emit a write
@@ -298,10 +292,8 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
     /* FIXME: How can the page be destroyed if it's dirty...? */
     pmo_stats_start_psynctime_encrypt(&mm->pmo_stats);
 
-    list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list)
-    {
-        if (!PMO_PAGE_IS_DESTROYED(vpma, cursor->pagenum))
-        {
+    list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list) {
+        if (!PMO_PAGE_IS_DESTROYED(vpma, cursor->pagenum)) {
             pmo_handle_memcpy_sync(req, vpma, cursor->pagenum, local_iv,
                                    &cursor->sg_primary,
                                    &cursor->sg_shadow,
@@ -310,8 +302,7 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
                                        ? &cursor->sg_working
                                        : NULL);
         }
-        else
-        {
+        else {
             pmo_dec_encrypted_pages(vpma);
             /* I don't really know why this needs to be here, but
              * apparently things break badly if it's not... */
@@ -320,8 +311,7 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
     }
     pmo_barrier();
 
-    list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list)
-    {
+    list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list) {
         if (PMO_BLOCK_IS_ENABLED())
             _pmo_block_handle_sync(vpma, cursor->pagenum);
 

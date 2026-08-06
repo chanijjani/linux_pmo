@@ -73,7 +73,7 @@ void * do_attach(struct pmo_entry *pmo, char prot_type, size_t size, size_t page
 
 	char *name;
 
-	unsigned long long int end_ktyime, start_ktime;
+	unsigned long long int end_ktime, start_ktime;
 
 	struct vpma_area_struct *vpma;
 	size_t length = (size == 0 ? pmo->size_in_pages * PAGE_SIZE : size);
@@ -197,7 +197,7 @@ int enable_vpma_access(struct vpma_area_struct *vpma, __u64 size,
 			vpma->working_data = 
 				kvmalloc (size/PAGE_SIZE * sizeof (struct working_page),
 						GFP_KERNEL);
-			pmo_initialize_verify_thread(vpma);
+			pmo_initialize_async_thread(vpma);
 			for (i = 0; i < size/PAGE_SIZE; i++)  {
 				/*
 				vpma->working_data[i].phys_addr = 0;
@@ -460,8 +460,14 @@ void pmo_destroy_shadow_page(struct vpma_area_struct *vpma, size_t pagenum, char
 
 	/* Update the IV even if it's just sitting in DRAM */
 	if(PMO_IV_DETACH_IS_ENABLED()) {
-		pmo_obtain_shadow_hash(vpma, pagenum);
-		pmo_assign_primary_hash(vpma, pagenum);
+		if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
+			pmo_async_obtain_shadow_hash(vpma, pagenum);
+			pmo_async_obtain_primary_hash(vpma, pagenum);
+		}
+		else {
+			pmo_obtain_shadow_hash(vpma, pagenum);
+			pmo_assign_primary_hash(vpma, pagenum);
+		}
 	}
 
 

@@ -11,4 +11,4 @@ obj-$(CONFIG_PMO_USE_ALLOC) += alloc.o
 obj-$(CONFIG_PMO_NO_PAGEWALK) += nopagewalk.o
 obj-$(CONFIG_PMO_PAGEWALK) += pagewalk.o
 obj-$(CONFIG_PMO_STATS_REPORTING) += stats.o
-obj-y += access.o block.o creation.o dax.o entry.o fault.o init.o hashing.o recovery.o sync.o vpma.o settings.o crypto.o nocrypto.o markov.o stride.o perpage/ whole/
+obj-y += access.o block.o creation.o dax.o entry.o fault.o init.o hashing.o recovery.o sync.o vpma.o settings.o crypto.o nocrypto.o markov.o stride.o dax_cxl.o perpage/ whole/ 

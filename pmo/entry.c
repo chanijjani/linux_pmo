@@ -21,7 +21,7 @@
 
 struct proc_dir_entry *pmo_proc_entry, *pmo_dram_entry, *pmo_pred_entry, *pmo_depth_entry,
 		      *pmo_debug_entry, *pmo_access_entry, *pmo_emulate_cxl_entry = PMO_LOCAL,
-		      *pmo_async_checksum_entry;
+		      *pmo_async_checksum_entry, *pmo_bypass_shadow_entry;
 enum access_type pmo_access_mode = DAX;
 
 SYSCALL_DEFINE5(attach, char __user *, path, unsigned, access_type,
@@ -276,8 +276,11 @@ inline void pmo_unmap(void *ptr)
 
 inline void pmo_sync (void *address, size_t size)
 {
+	/* FIXME: Check if running in Gem5, and then if so, do not call this
+	 * function, CLFLUSH is cursed. :(  */
 	if (PMO_DAX_IS_ENABLED()) 
 	       	arch_wb_cache_pmem(address, size);
+
 	/*
 	else
 		vfs_fsync(PMO_FILE_PTR, 0);

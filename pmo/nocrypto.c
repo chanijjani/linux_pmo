@@ -26,6 +26,12 @@ void pmo_handle_page_noenc (struct vpma_area_struct *vpma, size_t offset)
 	void *primary = vpma->primary + offset,
 	     *shadow = vpma->shadow + offset;
 
+	/*
+	 * If bypass shadow is true, do not do anything here... just return 
+	 * ex:		if (PMO_BYPASS_SHADOW())
+	 * 			return;
+	 */
+
 	memcpy_flushcache (shadow, primary, PAGE_SIZE);
 	pmo_barrier();
 	return;

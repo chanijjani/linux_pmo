@@ -149,9 +149,16 @@ inline __always_inline void _pmo_handle_db_dirty(struct vm_area_struct *vma,
 		        pmo_obtain_shadow_hash(vpma, offset/PAGE_SIZE);
 	}
 	else  {
-		memcpy_flushcache(vpma->shadow + offset, vpma->working_data[pagenum].vaddr, PAGE_SIZE);
-		if(PMO_IV_PSYNC_IS_ENABLED())
-		        pmo_obtain_shadow_hash(vpma, offset/PAGE_SIZE);
+		/* If bypass shadow...
+		 * Then copy from working data to primary */
+		memcpy_flushcache(vpma->shadow + offset,
+				vpma->working_data[pagenum].vaddr, PAGE_SIZE);
+		if(PMO_IV_PSYNC_IS_ENABLED()) {
+			PMO_ASYNC_CHECKSUM_IS_ENABLED() ? 
+				pmo_async_obtain_shadow_hash(vpma,
+						offset/PAGE_SIZE) :
+				pmo_obtain_shadow_hash(vpma, offset/PAGE_SIZE);
+		}
 	}
 
 

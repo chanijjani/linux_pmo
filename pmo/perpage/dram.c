@@ -219,8 +219,12 @@ void _pmo_dram_encrypt_cb(struct crypto_async_request *req, int err)
         pmo_sync(primary, PAGE_SIZE);
 
         /* FIXME: should pmo_barrier() be called here? */
-        if(PMO_IV_PSYNC_IS_ENABLED())
-                pmo_assign_primary_hash(vpma, pagenum);
+        if(PMO_IV_PSYNC_IS_ENABLED()) {
+		if (PMO_ASYNC_CHECKSUM_IS_ENABLED())
+			pmo_async_obtain_primary_hash(vpma, pagenum);
+		else
+                	pmo_assign_primary_hash(vpma, pagenum);
+	}
 
         /* Atomically decrement a variable indicating how many pages have been
          * synchronized, and wake up the completion to inform flushcache of

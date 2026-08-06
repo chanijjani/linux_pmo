@@ -10,7 +10,10 @@ void _pmo_encrypt_together_cb(struct crypto_async_request *req, int err)
 	pmo_sync(vpma->primary + offset, PAGE_SIZE);
 	atomic_dec(&vpma->crypto.faulted_pages);
 	if(PMO_IV_PSYNC_IS_ENABLED()) {
-		pmo_assign_primary_hash(vpma, offset/PAGE_SIZE);
+		if (PMO_ASYNC_CHECKSUM_IS_ENABLED())
+			pmo_async_obtain_primary_hash(vpma, offset/PAGE_SIZE);
+		else
+			pmo_assign_primary_hash(vpma, offset/PAGE_SIZE);
 	}
 
 	kvfree(async_struct);

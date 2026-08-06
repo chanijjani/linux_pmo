@@ -46,7 +46,10 @@ void _pmo_encrypt_cb(struct crypto_async_request *req, int err)
 
 	/* FIXME: should pmo_barrier() be called here? */
 	if(PMO_IV_PSYNC_IS_ENABLED()) {
-		pmo_assign_primary_hash(vpma, pagenum);
+		if (PMO_ASYNC_CHECKSUM_IS_ENABLED())
+			pmo_async_obtain_primary_hash(vpma, pagenum);
+		else
+			pmo_assign_primary_hash(vpma, pagenum);
 
 	}
 	/* Finally free the async struct */

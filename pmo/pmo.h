@@ -192,7 +192,9 @@ struct vpma_area_struct {
 		
 		bool page_in_buffer;
 	
-		struct task_struct *verify_thread;
+		struct task_struct *verify_thread,
+				   *shadowhash_thread,
+				   *primaryhash_thread;
 	} *working_data;
 
 	/* I heard you like structs, so I nested a struct within a union within a
@@ -689,7 +691,8 @@ struct pmo_settings {
 	     dram_as_buffer,
 	     debug,
 	     paranoid,
-	     async_checksum;
+	     async_checksum,
+	     bypass_shadow;
 
 	char depth;
 };
@@ -702,6 +705,9 @@ struct pmo_settings {
 
 #define PMO_DEBUG_MODE_IS_ENABLED() \
 	header->this.settings.debug
+
+#define PMO_BYPASS_SHADOW_IS_ENABLED() \
+	header->this.settings.bypass_shadow
 
 #define PMO_ASYNC_CHECKSUM_IS_ENABLED() \
 	header->this.settings.async_checksum
@@ -799,13 +805,11 @@ struct pmo_settings {
 #define PMO_DISABLE_DRAM_PREDICTAHEAD() \
 	header->this.settings.dram_predictahead = false;
 
-
 #define PMO_DRAM_IS_ENABLED() \
 	header->this.settings.dram
 
 #define PMO_DRAM_PREDICTAHEAD_IS_ENABLED() \
 	header->this.settings.dram_predictahead
-
 
 #define PMO_GET_PREDICTION_DEPTH() \
 	header->this.settings.depth
@@ -984,7 +988,9 @@ void nonblocking_disable_vpma_access(struct vpma_area_struct *vpma);
 void nonblocking_verify_fault(struct vpma_area_struct *vpma,
 		unsigned long pagenum);
 void pmo_initialize_detach_thread(struct vpma_area_struct *vpma);
-void pmo_initialize_verify_thread(struct vpma_area_struct *vpma);
+void pmo_initialize_async_thread(struct vpma_area_struct *vpma);
+void pmo_async_obtain_shadow_hash(struct vpma_area_struct *vpma, size_t pagenum);
+void pmo_async_obtain_primary_hash(struct vpma_area_struct *vpma, size_t pagenum);
 void pmo_initialize_decryptahead_thread(struct vpma_area_struct *vpma);
 void pmo_run_decryptahead_thread(struct vpma_area_struct *vpma);
 #else

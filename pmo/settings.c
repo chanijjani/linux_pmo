@@ -1,6 +1,14 @@
+/*****************************************************************************
+ * Copyright (C) 2020 - 2026 Derrick Greenspan, Chanhee Lee, and the         *
+ * University of Central Florida (UCF)					     				 *
+ *****************************************************************************
+ * PMO Setting															     *
+ *****************************************************************************/
+
 #include "pmo.h"
 #include <linux/mm_types.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 
 void pmo_set_mode (char *mode)
 {
@@ -227,6 +235,75 @@ static ssize_t pmo_asnyc_checksum_write(struct file *filp, const char *buff,
 		PMO_SET_ASYNC_CHECKSUM(async_worker_num);
 		printk(KERN_INFO "Set %d async workers\n", async_worker_num);
 	};
+	return len;
+}
+
+static ssize_t pmo_checksum_batch_size_write(struct file *filp, const char *buff,
+		size_t len, loff_t *off)
+{
+	char batch_type[30];
+	int batch_size;
+	if(copy_from_user(batch_type, buff, len) != 0)
+		printk(KERN_WARNING "Copy from user for checksum batch size write failed!\n");
+
+	batch_type[1] = 0;
+
+	if (kstrtoint(batch_type, 0, &batch_size)) {
+		printk(KERN_WARNING "Could not set unknown batch size %s\n", batch_type);
+		return len;
+	}
+
+	if (batch_size < 1) {
+		printk(KERN_WARNING "Batch size must be at least 1\n");
+	}
+	else {
+		PMO_SET_CHECKSUM_BATCH_SIZE(batch_size);
+		printk(KERN_INFO "Set checksum batch size to %d\n", batch_size);
+	};
+	return len;
+}
+
+/* /proc/pmo/verify_cost_ns — synthetic per-page verification cost (nanoseconds)
+ * injected into pmo_get_page_hash().  Unlike the single-digit knobs above, this
+ * parses the full multi-digit value so the crossover sweep can span 0..tens of
+ * microseconds. */
+static ssize_t pmo_verify_cost_ns_write(struct file *filp, const char *buff,
+		size_t len, loff_t *off)
+{
+	char buf[32];
+	int val;
+	size_t n = min(len, sizeof(buf) - 1);
+
+	if (copy_from_user(buf, buff, n) != 0)
+		printk(KERN_WARNING "Copy from user for verify_cost_ns write failed!\n");
+	buf[n] = 0;
+
+	if (kstrtoint(strim(buf), 0, &val)) {
+		printk(KERN_WARNING "Could not parse verify_cost_ns '%s'\n", buf);
+		return len;
+	}
+
+	if (val < 0)
+		val = 0;
+	PMO_SET_VERIFY_COST_NS(val);
+	printk(KERN_INFO "Set per-page synthetic verification cost to %d ns\n", val);
+	return len;
+}
+
+/* /proc/pmo/hash_algo — selects the crypto_shash algorithm used for per-page
+ * verification (e.g. crc32c, md5, sha1, sha224, sha256).  Algorithms whose
+ * digest exceeds 32 B are rejected by pmo_set_hash_algo(). */
+static ssize_t pmo_hash_algo_write(struct file *filp, const char *buff,
+		size_t len, loff_t *off)
+{
+	char buf[32];
+	size_t n = min(len, sizeof(buf) - 1);
+
+	if (copy_from_user(buf, buff, n) != 0)
+		printk(KERN_WARNING "Copy from user for hash_algo write failed!\n");
+	buf[n] = 0;
+
+	pmo_set_hash_algo(buf);
 	return len;
 }
 
@@ -462,6 +539,56 @@ static ssize_t pmo_async_checksum_read(struct file *file, char __user *ubuf,
 	return -1;
 }
 
+static ssize_t pmo_checksum_batch_size_read(struct file *file, char __user *ubuf,
+		size_t count, loff_t *ppos)
+{
+	char batch_type[30];
+	if (*ppos > 0 || count < 30)
+		return 0;
+
+	sprintf(batch_type, "%d\n", PMO_GET_CHECKSUM_BATCH_SIZE());
+
+	if (copy_to_user(ubuf, batch_type, 30) == 0) {
+		*ppos = strlen(batch_type);
+		return (strlen(batch_type));
+	}
+	return -1;
+}
+
+static ssize_t pmo_verify_cost_ns_read(struct file *file, char __user *ubuf,
+		size_t count, loff_t *ppos)
+{
+	char buf[32];
+	int n;
+	if (*ppos > 0 || count < sizeof(buf))
+		return 0;
+
+	n = snprintf(buf, sizeof(buf), "%d\n", PMO_GET_VERIFY_COST_NS());
+
+	if (copy_to_user(ubuf, buf, n) == 0) {
+		*ppos = n;
+		return n;
+	}
+	return -1;
+}
+
+static ssize_t pmo_hash_algo_read(struct file *file, char __user *ubuf,
+		size_t count, loff_t *ppos)
+{
+	char buf[32];
+	int n;
+	if (*ppos > 0 || count < sizeof(buf))
+		return 0;
+
+	n = snprintf(buf, sizeof(buf), "%s\n", pmo_hash_algo_name);
+
+	if (copy_to_user(ubuf, buf, n) == 0) {
+		*ppos = n;
+		return n;
+	}
+	return -1;
+}
+
 static ssize_t pmo_emulate_cxl_read(struct file *file, char __user *ubuf,
 		size_t count, loff_t *ppos)
 {
@@ -619,10 +746,29 @@ static struct proc_ops pmo_async_checksum_fops = {
 	.proc_write = pmo_asnyc_checksum_write,
 };
 
+static struct proc_ops pmo_checksum_batch_size_fops = {
+	.proc_read = pmo_checksum_batch_size_read,
+	.proc_write = pmo_checksum_batch_size_write,
+};
+
 static struct proc_ops pmo_fault_tolerance_fops = {
 	.proc_read = pmo_fault_tolerance_read,
 	.proc_write = pmo_fault_tolerance_write,
 };
+
+static struct proc_ops pmo_verify_cost_ns_fops = {
+	.proc_read = pmo_verify_cost_ns_read,
+	.proc_write = pmo_verify_cost_ns_write,
+};
+
+static struct proc_ops pmo_hash_algo_fops = {
+	.proc_read = pmo_hash_algo_read,
+	.proc_write = pmo_hash_algo_write,
+};
+
+struct proc_dir_entry *pmo_checksum_batch_size_entry;
+struct proc_dir_entry *pmo_verify_cost_ns_entry;
+struct proc_dir_entry *pmo_hash_algo_entry;
 
 void pmo_proc_init(void)
 {
@@ -635,6 +781,72 @@ void pmo_proc_init(void)
 	pmo_access_entry = proc_create("access", 0660, dir, &access_fops);
 	pmo_emulate_cxl_entry = proc_create("cxl_emulation", 0660, dir, &pmo_emulate_cxl_fops);
 	pmo_async_checksum_entry = proc_create("async_checksum", 0660, dir, &pmo_async_checksum_fops);
+	pmo_checksum_batch_size_entry = proc_create("checksum_batch_size", 0660, dir, &pmo_checksum_batch_size_fops);
 	pmo_fault_tolerance_entry = proc_create("fault_tolerance", 0660, dir, &pmo_fault_tolerance_fops);
+	pmo_verify_cost_ns_entry = proc_create("verify_cost_ns", 0660, dir, &pmo_verify_cost_ns_fops);
+	pmo_hash_algo_entry = proc_create("hash_algo", 0660, dir, &pmo_hash_algo_fops);
+	pmo_proc_stats_init(dir);
 	return;
+}
+
+/* /proc/pmo/stats — per-process page-fault timing breakdown.
+ * Exposes avg_pf_ns, avg_pm_access_ns, avg_page_iv_ns, verification_pct
+ * so userspace benchmarks can read verification overhead directly without
+ * parsing dmesg.  Write any byte to reset the per-process counters. */
+
+struct proc_dir_entry *pmo_stats_entry;
+
+static int pmo_stats_show(struct seq_file *m, void *v)
+{
+	struct pmo_stats_struct *s = &current->mm->pmo_stats;
+	unsigned long long faulttime = atomic64_read(&s->faulttime);
+	unsigned long long page_iv   = atomic64_read(&s->page_iv);
+	unsigned long long pages     = s->pages_touched;
+	unsigned long long pm_access = (faulttime > page_iv) ?
+				       faulttime - page_iv : 0;
+	unsigned long long ratio_pct = faulttime > 0 ?
+				       page_iv * 100 / faulttime : 0;
+
+	seq_printf(m, "pages_touched %llu\n",    pages);
+	seq_printf(m, "avg_pf_ns %llu\n",
+		   pages > 0 ? faulttime / pages : 0);
+	seq_printf(m, "total_faulttime_ns %llu\n",  faulttime);
+	seq_printf(m, "total_page_iv_ns %llu\n",    page_iv);
+	seq_printf(m, "pm_access_ns %llu\n",         pm_access);
+	seq_printf(m, "verification_pct %llu\n",     ratio_pct);
+	seq_printf(m, "avg_pm_access_ns %llu\n",
+		   pages > 0 ? pm_access / pages : 0);
+	seq_printf(m, "avg_page_iv_ns %llu\n",
+		   pages > 0 ? page_iv / pages : 0);
+	return 0;
+}
+
+static int pmo_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, pmo_stats_show, NULL);
+}
+
+static ssize_t pmo_stats_write(struct file *filp, const char __user *buf,
+			       size_t len, loff_t *off)
+{
+	struct pmo_stats_struct *s = &current->mm->pmo_stats;
+	atomic64_set(&s->faulttime, 0);
+	atomic64_set(&s->page_iv,   0);
+	s->pages_touched    = 0;
+	s->psynctime_other  = 0;
+	atomic64_set(&s->psynctime_iv, 0);
+	return len;
+}
+
+static const struct proc_ops pmo_stats_fops = {
+	.proc_open    = pmo_stats_open,
+	.proc_read    = seq_read,
+	.proc_write   = pmo_stats_write,
+	.proc_lseek   = seq_lseek,
+	.proc_release = single_release,
+};
+
+void pmo_proc_stats_init(struct proc_dir_entry *dir)
+{
+	pmo_stats_entry = proc_create("stats", 0660, dir, &pmo_stats_fops);
 }

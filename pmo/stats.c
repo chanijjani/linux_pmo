@@ -18,8 +18,9 @@ void pmo_dump_stats(struct pmo_stats_struct stats)
 	printk("Psync Total: %lld\nPsync IV: %lld\nPsync Encrypt: %lld\nPsync Other: %lld\n",
 		stats.psynctime_other, atomic64_read(&stats.psynctime_iv),
 		stats.psynctime_encrypt, stats.psynctime_other - stats.psynctime_encrypt - atomic64_read(&stats.psynctime_iv));
+	long long avg_pf_time = stats.pages_touched > 0 ? atomic64_read(&stats.faulttime) / stats.pages_touched : 0;
 	printk("AVG PF time: %lld\nPage Fault time: %lld\nPage IV: %lld\nPage Encrypt: %lld\n\n",
-		atomic64_read(&stats.faulttime)/stats.pages_touched, atomic64_read(&stats.faulttime), atomic64_read(&stats.page_iv), stats.page_encrypt);
+		avg_pf_time, atomic64_read(&stats.faulttime), atomic64_read(&stats.page_iv), stats.page_encrypt);
 	printk("PMO_IS_DIRTYPAGE_RENAMING() = %lld\n", PMO_IS_DIRTYPAGE_RENAMING());
 	if (PMO_IS_DIRTYPAGE_RENAMING()) {
 		printk("Max RingBuffer Size: %lld, Avg. RingBuffer Size: %lld, push count: %lld\n",

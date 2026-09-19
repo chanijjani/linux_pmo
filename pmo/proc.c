@@ -138,3 +138,6 @@ void pmo_proc_init(void)
 	pmo_proc_entry = proc_create("pmo", 0660, NULL, &pmo_fops);
 	return;
 }
+
+/* pmo_proc_stats_init() and pmo_stats_entry are defined in settings.c,
+ * which is the compiled home for all PMO procfs initialization. */

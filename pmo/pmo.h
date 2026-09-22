@@ -919,8 +919,11 @@ struct pmo_settings {
 // #define PMO_LAZY_FAULT_TOLERANCE() \
 // 	(header->this.settings.pmo_fault_tolerance_mode == LAZY)
 
-#define PMO_OLD_EAGER_FAULT_TOLERANCE() \
+#define PMO_SET_OLD_EAGER_FAULT_TOLERANCE() \
 	(header->this.settings.pmo_fault_tolerance_mode = OLD_EAGER)
+
+#define PMO_IS_OLD_EAGER_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode == OLD_EAGER)
 
 // #define PMO_NEW_EAGER_FAULT_TOLERANCE() \
 // 	(header->this.settings.pmo_fault_tolerance_mode == NEW_EAGER)
@@ -1056,6 +1059,7 @@ void nonblocking_disable_vpma_access(struct vpma_area_struct *vpma);
 void nonblocking_verify_fault(struct vpma_area_struct *vpma,
 		unsigned long pagenum);
 void pmo_flush_verify_batch(struct vpma_area_struct *vpma);
+void pmo_wait_verify_work(void);
 void pmo_initialize_detach_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_verify_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_decryptahead_thread(struct vpma_area_struct *vpma);
@@ -1064,6 +1068,8 @@ void pmo_cleanup_verify_workers(void);
 #else
 #define nonblocking_disable_vpma_access(idx)
 #define pmo_initialize_detach_thread(vpma)
+#define pmo_flush_verify_batch(vpma)
+#define pmo_wait_verify_work()
 #endif
 
 struct pmo_entry *get_pmo_from_name(char * name);

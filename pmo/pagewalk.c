@@ -85,6 +85,12 @@ inline void add_to_dirtypages(struct vpma_area_struct *vpma,
 inline void vpma_clear(struct vpma_area_struct *vpma)
 {
 	pmo_kill_disable_thread(vpma);
+	/* Exit without an explicit detach: drain async verification before
+	 * the vpma is freed (see pmo_wait_verify_work). */
+	if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
+		pmo_flush_verify_batch(vpma);
+		pmo_wait_verify_work();
+	}
 	/*
 	 * TODO: ... this should be part of zapvpma, probably
         if(vpma->faulted_pages_ll)

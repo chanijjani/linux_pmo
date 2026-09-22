@@ -313,10 +313,12 @@ int do_detach(struct mm_struct *mm, char *path)
 	}
 
 	if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
+		/* Push out the partial batch, then wait for every queued
+		 * verification to finish: the work items hold a raw vpma
+		 * pointer and must not outlive the detach. */
 		pmo_flush_verify_batch(vpma);
-		trace_printk("Clean up verification workers.\n");
-		// FIXME: Handle the below line correctly
-		// pmo_cleanup_verify_workers();
+		pmo_wait_verify_work();
+		trace_printk("Verification work drained before detach.\n");
 	}
 
 	pmo = vpma->pmo_ptr;

@@ -14,6 +14,7 @@
 #include <linux/range.h>
 #include <linux/proc_fs.h>
 #include <linux/rwsem.h>
+#include <linux/wait.h>
 #include <linux/rbtree.h>
 #include <linux/mutex.h>
 #include <linux/io.h>
@@ -264,6 +265,14 @@ struct vpma_area_struct {
 
 #ifdef CONFIG_PMO_NONBLOCKING
 	struct task_struct *disable_thread;
+	/* Hand-off to _disable_vpma_access_thread.  disable_pending is
+	 * incremented by the submitter and decremented by the worker only
+	 * once disable_vpma_access() has returned, so waiting for it to reach
+	 * zero is a reliable drain (pmo_wait_disable_work).  This replaces
+	 * kthread_park()/kthread_unpark() as the signalling mechanism, which
+	 * could both lose and duplicate a teardown request. */
+	wait_queue_head_t disable_wq, disable_done_wq;
+	atomic_t disable_pending;
 #endif
 
 
@@ -277,13 +286,8 @@ struct vpma_area_struct {
         char name[50], flags;
 };
 
-#ifdef CONFIG_PMO_NONBLOCKING
-#define pmo_kill_disable_thread(vpma) \
-	kthread_stop(vpma->disable_thread)
-//	put_task_struct(vpma->disable_thread)
-#else
-#define pmo_kill_disable_thread(vpma) 
-#endif
+/* pmo_kill_disable_thread() drains before it stops; see nonblocking/detach.c.
+ * Declared with the other nonblocking prototypes further down. */
 
 /* Each PFN is either occupied or unoccupied; if occupied, it cannot be
  * used for a shadow or a primary PMO.*/
@@ -919,8 +923,11 @@ struct pmo_settings {
 // #define PMO_LAZY_FAULT_TOLERANCE() \
 // 	(header->this.settings.pmo_fault_tolerance_mode == LAZY)
 
-#define PMO_OLD_EAGER_FAULT_TOLERANCE() \
+#define PMO_SET_OLD_EAGER_FAULT_TOLERANCE() \
 	(header->this.settings.pmo_fault_tolerance_mode = OLD_EAGER)
+
+#define PMO_IS_OLD_EAGER_FAULT_TOLERANCE() \
+	(header->this.settings.pmo_fault_tolerance_mode == OLD_EAGER)
 
 // #define PMO_NEW_EAGER_FAULT_TOLERANCE() \
 // 	(header->this.settings.pmo_fault_tolerance_mode == NEW_EAGER)
@@ -1047,7 +1054,10 @@ void block_pmo_handle_init(void);
 extern int block_psync(struct device *dev/*,TODO: maybe add linked list pointer?*/);
 void pmo_handle_init(bool init_proc);
 
+/* pm_primary value for "no space"; also the exclusive upper bound on indices */
+#define PMO_NO_LOCATION 0xFFFFFFFFULL
 __u64 get_available_pmo_location(__u64 size);
+__u64 get_pmo_location(struct pmo_entry *pmo, char *name, __u64 size);
 int enable_vpma_access(struct vpma_area_struct *vpma, __u64 size,
 		__u64 offset, char prot_type, char * key);
 int disable_vpma_access(struct vpma_area_struct *vpma);
@@ -1056,7 +1066,10 @@ void nonblocking_disable_vpma_access(struct vpma_area_struct *vpma);
 void nonblocking_verify_fault(struct vpma_area_struct *vpma,
 		unsigned long pagenum);
 void pmo_flush_verify_batch(struct vpma_area_struct *vpma);
+void pmo_wait_verify_work(void);
 void pmo_initialize_detach_thread(struct vpma_area_struct *vpma);
+void pmo_wait_disable_work(struct vpma_area_struct *vpma);
+void pmo_kill_disable_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_verify_thread(struct vpma_area_struct *vpma);
 void pmo_initialize_decryptahead_thread(struct vpma_area_struct *vpma);
 void pmo_run_decryptahead_thread(struct vpma_area_struct *vpma);
@@ -1064,6 +1077,10 @@ void pmo_cleanup_verify_workers(void);
 #else
 #define nonblocking_disable_vpma_access(idx)
 #define pmo_initialize_detach_thread(vpma)
+#define pmo_wait_disable_work(vpma)
+#define pmo_kill_disable_thread(vpma)
+#define pmo_flush_verify_batch(vpma)
+#define pmo_wait_verify_work()
 #endif
 
 struct pmo_entry *get_pmo_from_name(char * name);
@@ -1118,7 +1135,7 @@ void zap_vpmas(struct rb_root *root);
 /************
  * CREATION * 
  ************/
-void do_create(char *name, __u64 size, char *key);
+int do_create(char *name, __u64 size, char *key);
 struct vpma_area_struct * create_vpma_for_pmo(__u64 address,__u64 size,
 		char *name, char *subset_name, char prot_type, char *key);
 struct vm_area_struct *create_vma_for_pmo(__u64 size, __u64 pmo_address,

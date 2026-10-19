@@ -484,7 +484,7 @@ static ssize_t pmo_fault_tolerance_write(struct file *filp, const char *buff,
 		// 	printk (KERN_INFO "LAZY FAULT TOLERANCE\n");
 		// 	return len;
 		case (1):
-			PMO_OLD_EAGER_FAULT_TOLERANCE();
+			PMO_SET_OLD_EAGER_FAULT_TOLERANCE();
 			printk (KERN_INFO "OLD EAGER FAULT TOLERANCE\n");
 			return len;
 		// case (3):

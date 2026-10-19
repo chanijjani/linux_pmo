@@ -71,6 +71,13 @@ void zap_vpmas(struct rb_root *root)
 	while(!RB_EMPTY_ROOT(root)) {
 		data = container_of(node,struct vpma_area_struct, node);
 
+		/* A detach may still be queued on the per-vpma kthread.  Let it
+		 * finish before anything below is freed: the worker takes
+		 * pm_sem itself now, so it would otherwise be free to run its
+		 * teardown against a faulted_pages_ll we have already released.
+		 * Taken before mmap_read_lock/pm_sem so it cannot deadlock. */
+		pmo_wait_disable_work(data);
+
 		mmap_read_lock(data->current_mm);
 		down_write(&data->pm_sem);
 		pmo_handle_abend(data, data->vma->vm_start); 

@@ -15,7 +15,7 @@
 #include <crypto/skcipher.h>
 #include "pmo.h"
 
-void do_create(char *name, __u64 size, char *key)
+int do_create(char *name, __u64 size, char *key)
 {
 	void *pmo_mapping;
         struct pmo_entry *pmo;
@@ -23,7 +23,7 @@ void do_create(char *name, __u64 size, char *key)
 
 	struct mm_struct *mm = current->mm;
 	loff_t pos;
-        __u64 address, hash, 
+        __u64 address, hash, location,
 	      pmolist_start = metadata_start + sizeof(union pmo_header) + sizeof(__u64);
 
 	pmo_stats_start_create_time(&mm->pmo_stats);
@@ -40,10 +40,19 @@ void do_create(char *name, __u64 size, char *key)
 
         pmo = (struct pmo_entry *)pmo_mapping;
 
+	/* Decide the location before touching the entry, so a failed create
+	 * leaves whatever PMO was there intact */
+	location = get_pmo_location(pmo, name, size);
+	if (location == PMO_NO_LOCATION) {
+		printk(KERN_ERR "PMO: cannot create %s: no space left\n", name);
+		pmo_stats_stop_create_time(&mm->pmo_stats);
+		return -ENOSPC;
+	}
+
         strcpy(pmo->name, name);
 
 	pmo->size_in_pages = PAGE_ALIGN(size)/PAGE_SIZE;
-        pmo->pm_primary = get_available_pmo_location(size);
+        pmo->pm_primary = location;
 	/* NOTE: If we're using allocation, then the bitfield starts at the end
 	 * of the primary. Effectively, we're saying that each PMO is size + 
 	 * size/64 large for its primary. */
@@ -64,5 +73,5 @@ void do_create(char *name, __u64 size, char *key)
 
 	pmo_stats_stop_create_time(&mm->pmo_stats);
 	trace_printk("[Create_end: %lld]\n", mm->pmo_stats.createtime);
-	return; 
+	return 0;
 }

@@ -113,6 +113,14 @@ inline void add_to_dirtypages(struct vpma_area_struct *vpma,
 
 inline void vpma_clear(struct vpma_area_struct *vpma)
 {
+	/* Keep in sync with pagewalk.c: nothing may still point at the vpma
+	 * when it is freed. */
+	pmo_kill_disable_thread(vpma);
+	if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
+		pmo_flush_verify_batch(vpma);
+		pmo_wait_verify_work();
+	}
+
 	if(vpma->phys_primary)
 		pmo_unmap(vpma->primary);
 	if(vpma->phys_shadow)

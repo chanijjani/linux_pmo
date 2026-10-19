@@ -253,11 +253,27 @@ out:
 	return 0;
 }
 
+/*
+ * Tear down a vpma's mappings and release the PMO.
+ *
+ * Takes vpma->pm_sem itself: the caller must NOT hold it.  This used to be
+ * entered with the semaphore already held by do_detach() and released here,
+ * which meant that under CONFIG_PMO_NONBLOCKING the lock was acquired by the
+ * detaching task and dropped by the detach kthread.  An rw_semaphore records
+ * its owner and cannot be handed between tasks: doing so corrupted the
+ * semaphore's count, after which a later down_write() either blocked forever
+ * (silent machine hang) or failed to exclude at all (two tasks mutating one
+ * vpma, seen as a stray digest write through a dangling pointer).
+ */
 int disable_vpma_access(struct vpma_area_struct *vpma)
 {
 	size_t size;
 	struct pmo_pages *conductor = NULL;
-	struct pmo_entry *pmo = vpma->pmo_ptr;
+	struct pmo_entry *pmo;
+
+	down_write(&vpma->pm_sem);
+
+	pmo = vpma->pmo_ptr;
         size = pmo->size_in_pages * PAGE_SIZE;
 
 	if(PMO_WHOLE_IS_ENABLED()) {
@@ -292,7 +308,6 @@ out:
 
 	pmo_update_metadata(vpma);
 	up_write(&vpma->pm_sem);
-	kthread_park(vpma->disable_thread);
 	return 0;
 }
 
@@ -333,10 +348,17 @@ int do_detach(struct mm_struct *mm, char *path)
 	pmo_stats_start_detach_time(&mm->pmo_stats);
 	trace_printk("[Detach_start: %lld]\n", mm->pmo_stats.detachtime_start);
 
+	/* Revoke access and publish the detached state while serialised against
+	 * the fault path, then drop the lock.  disable_vpma_access() re-takes it
+	 * on whichever task ends up running the teardown -- it must not be
+	 * inherited from here (see disable_vpma_access). */
 	down_write(&vpma->pm_sem);
         vma->vm_flags &= ~(VM_READ|VM_WRITE|VM_EXEC);
         vma_set_page_prot(vma);
-	/* Spawn a thread to invoke nonblocking_disable_vpma_access */
+	vpma->calling_pid = INT_MIN;
+	up_write(&vpma->pm_sem);
+
+	/* Hand the teardown to the per-vpma kthread */
 	if(IS_ENABLED(CONFIG_PMO_NONBLOCKING)) 
 		nonblocking_disable_vpma_access(vpma);
 	else /* Directly call disable_vpma_access */
@@ -401,10 +423,93 @@ struct pmo_entry *pmo_memremap(char *name)
 
 
 
+/*
+ * Does [offset, offset + span) -- an offset from metadata_start -- lie inside
+ * the PMO device?  metadata_end is the device's last byte (inclusive).
+ *
+ * This must hold for every PMO: under DAX the region is memremap()ed, and
+ * memremap() of an address past the end of the dax device that happens to be
+ * System RAM silently returns the direct-map alias of live kernel memory.
+ * The PMO then scribbles over whatever the kernel keeps there.
+ */
+static bool pmo_location_fits(__u64 offset, __u64 span)
+{
+	if (span == 0 || offset + span < offset)
+		return false;
+	/* pm_primary is a 32-bit page index */
+	if ((offset + span) / PAGE_SIZE >= PMO_NO_LOCATION)
+		return false;
+	return metadata_start + offset + span - 1 <= metadata_end;
+}
+
+/*
+ * Can a re-create of an existing PMO keep the space it already owns?  Only if
+ * that space is big enough and was handed out by the allocator's current run
+ * (i.e., below next_free_pmo), so it cannot overlap any other live PMO.
+ * Caller holds pmo_system_mutex.
+ */
+static bool pmo_attached_elsewhere(struct pmo_entry *pmo)
+{
+	int pid = atomic_read(&pmo->pid);
+	bool alive;
+
+	/* pid is left over from an earlier boot, or it is our own attach
+	 * whose (nonblocking) detach has not cleared it yet */
+	if (!pid || atomic_read(&pmo->boot_id) != get_boot_id() ||
+			pid == task_pid_vnr(current))
+		return false;
+
+	rcu_read_lock();
+	alive = pid_task(find_vpid(pid), PIDTYPE_PID) != NULL;
+	rcu_read_unlock();
+	return alive;
+}
+
+static bool pmo_location_reusable(struct pmo_entry *pmo, __u64 size)
+{
+	__u64 offset = (__u64)pmo->pm_primary * PAGE_SIZE,
+	      span = 2 * (__u64)pmo->size_in_pages * PAGE_SIZE;
+
+	/* Another process still maps the old space: give the new PMO its own */
+	if (pmo_attached_elsewhere(pmo))
+		return false;
+
+	return pmo->pm_primary != PMO_NO_LOCATION &&
+		(__u64)pmo->size_in_pages * PAGE_SIZE >= PAGE_ALIGN(size) &&
+		offset + span <= header->this.next_free_pmo &&
+		pmo_location_fits(offset, span);
+}
+
+/*
+ * Pick the location of a PMO being created, as a page index from
+ * metadata_start.  Re-creating a PMO under its own name reuses its space:
+ * PMOs cannot be deleted, so benchmarks that re-create the same PMO every
+ * iteration used to leak 2 * size per create and, after ~15.9k creates of a
+ * 4 MiB PMO, run off the end of dax0.0 into DRAM.
+ *
+ * Returns PMO_NO_LOCATION if the device is full.
+ */
+__u64 get_pmo_location(struct pmo_entry *pmo, char *name, __u64 size)
+{
+	__u64 location;
+
+	mutex_lock(&pmo_system_mutex);
+	if (strncmp(pmo->name, name, sizeof(pmo->name)) == 0 &&
+			pmo_location_reusable(pmo, size))
+		location = pmo->pm_primary;
+	else
+		location = PMO_NO_LOCATION;
+	mutex_unlock(&pmo_system_mutex);
+
+	if (location != PMO_NO_LOCATION)
+		return location;
+	return get_available_pmo_location(size);
+}
+
 __u64 get_available_pmo_location(__u64 size)
 {
           __u64 available_pmo;
-  
+
           /*****************************
            * Start of critical section *
            *****************************/
@@ -412,6 +517,16 @@ __u64 get_available_pmo_location(__u64 size)
 
           /* get an available open PMO */
           available_pmo = header->this.next_free_pmo;
+
+	  /* Primary and shadow both have to fit; do not advance past the end */
+	  if (!pmo_location_fits(available_pmo, 2 * (__u64)PAGE_ALIGN(size))) {
+		  mutex_unlock(&pmo_system_mutex);
+		  printk(KERN_ERR "PMO: out of space: need %llu bytes at offset "
+				  "0x%llx, device ends at 0x%llx\n",
+				  2 * (__u64)PAGE_ALIGN(size), available_pmo,
+				  metadata_end - metadata_start + 1);
+		  return PMO_NO_LOCATION;
+	  }
 
           /* The next free PMO should be double the size of the PMO and the size of the 
 	   * to provide room for the shadow PMO
@@ -431,12 +546,8 @@ __u64 get_available_pmo_location(__u64 size)
            * End of critical section *
            ***************************/
   
-	  available_pmo = available_pmo / PAGE_SIZE;
-  
-          if(available_pmo < metadata_end)
-                  return available_pmo;
-          else /* RIP -- this PMO is located outside the usable NVMM space */	
-                  return 0xFFFFFFFF;
+	  /* Bounds were checked above, before next_free_pmo was advanced */
+	  return available_pmo / PAGE_SIZE;
 }
 
 

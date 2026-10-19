@@ -80,23 +80,26 @@ SYSCALL_DEFINE5(attach, char __user *, path, unsigned, access_type,
 	 * request occurs is to return -ENOENT, because the PMO already exists.
 	 * However, for benchmarking, we need to first create or append a PMO
 	 * and we'll need to do this many times. Since we can't delete PMOs
-	 * right now, we'll just recreate the PMO for now, creating a memory 
-	 * leak.
+	 * right now, we'll just recreate the PMO for now.  A re-create under the
+	 * same name reuses the PMO's existing space (see get_pmo_location());
+	 * otherwise new space is allocated and the old one is leaked.
 	 */
 	if(access_type == 'c' || access_type == 'C') {
+		long err;
+
 		/* Pass in the key which, along with the IV, will be forged to the
 		 * PMO. The PMO is initially empty. */
 		printk("Trying to create PMO %s of size %lld\n", name, size_or_flags);
 
 		pmo_stats_start_create_time(&mm->pmo_stats);
-		do_create(name, size_or_flags, key_buf);
+		err = do_create(name, size_or_flags, key_buf);
 		pmo_stats_stop_create_time(&mm->pmo_stats);
 
 		trace_printk("PMO_WHOLE_IS_ENABLED(): %d,  PMO_ASYNC_CHECKSUM_IS_ENABLED(): %d, PMO_IV_IS_ENABLED(): %d,  Create_start: %llu, end: %llu\n",
 			PMO_WHOLE_IS_ENABLED(), PMO_ASYNC_CHECKSUM_IS_ENABLED(), PMO_IV_IS_ENABLED(), mm->pmo_stats.createtime_start,
 			mm->pmo_stats.createtime);
 
-		return 0;
+		return err;
 	}
 
 

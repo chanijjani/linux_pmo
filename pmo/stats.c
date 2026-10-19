@@ -23,8 +23,9 @@ void pmo_dump_stats(struct pmo_stats_struct stats)
 		avg_pf_time, atomic64_read(&stats.faulttime), atomic64_read(&stats.page_iv), stats.page_encrypt);
 	printk("PMO_IS_DIRTYPAGE_RENAMING() = %lld\n", PMO_IS_DIRTYPAGE_RENAMING());
 	if (PMO_IS_DIRTYPAGE_RENAMING()) {
-		printk("Max RingBuffer Size: %lld, Avg. RingBuffer Size: %lld, push count: %lld\n",
-			stats.max_ring_buffer_size, stats.num_ring_buffer_push > 0 ? stats.sum_ring_buffer_size/stats.num_ring_buffer_push : 0, stats.num_ring_buffer_push);
+		printk("Max RingBuffer Size: %lld, Avg. RingBuffer Size: %lld, push count: %lld, overflow count: %lld\n",
+			stats.max_ring_buffer_size, stats.num_ring_buffer_push > 0 ? stats.sum_ring_buffer_size/stats.num_ring_buffer_push : 0, stats.num_ring_buffer_push,
+			stats.num_ring_buffer_overflow);
 	}
 	printk("Detach: %lld\n", stats.detachtime);
 	printk("Total pages touched: %lld\n", stats.pages_touched);

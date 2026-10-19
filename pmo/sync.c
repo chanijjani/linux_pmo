@@ -320,8 +320,10 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
     {
         if (!PMO_PAGE_IS_DESTROYED(vpma, cursor->pagenum))
         {
+            bool queued = false;
+
             if (PMO_IS_DIRTYPAGE_RENAMING()) {
-                async_persist_page(req, vpma,
+                int ret = async_persist_page(req, vpma,
                     cursor->pagenum, local_iv,
                     &cursor->sg_primary,
                     &cursor->sg_shadow,
@@ -329,8 +331,18 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
                     !PMO_DRAM_AS_BUFFER_IS_ENABLED())
                         ? &cursor->sg_working
                         : NULL);
+
+                queued = (ret == 0);
+                if (ret == -ENOSPC) {
+                    /* Proxy buffer full: back-pressure.  Let the worker
+                     * finish what is queued (it shares req and local_iv),
+                     * then commit this page here, as non-renaming FPMO
+                     * does.  Capacity costs overlap, never the page. */
+                    mm->pmo_stats.num_ring_buffer_overflow++;
+                    pmem_proxy_drain();
+                }
             }
-            else {
+            if (!queued) {
                 pmo_handle_memcpy_sync(req, vpma, cursor->pagenum, local_iv,
                                    &cursor->sg_primary,
                                    &cursor->sg_shadow,
@@ -349,6 +361,10 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
             pmo_crypto_wakeup(vpma);
         }
     }
+    /* Every renamed page must reach primary before req and the stack
+     * local_iv the queued requests point to go out of scope. */
+    if (PMO_IS_DIRTYPAGE_RENAMING())
+        pmem_proxy_drain();
     pmo_barrier();
 
     list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list)

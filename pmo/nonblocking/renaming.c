@@ -18,10 +18,17 @@ struct proxy_ring_buffer {
     atomic_t head;
     atomic_t tail;
     spinlock_t lock;
+    /* Pages accepted by ring_buffer_push() and pages whose stage-2 copy has
+     * finished.  ring_buffer_pop() advances tail before the copy, so an
+     * empty ring does not mean the last copy is done: pmem_proxy_drain()
+     * waits on these counters instead. */
+    atomic_t pushed;
+    atomic_t completed;
 };
 
 static struct proxy_ring_buffer pmem_proxy_rb;
 static struct task_struct *pmem_worker;
+static DECLARE_WAIT_QUEUE_HEAD(pmem_proxy_drain_wq);
 
 static int pmem_worker_thread(void *data);
 int pmem_proxy_rb_occupancy(void);
@@ -35,6 +42,11 @@ void pmem_proxy_init(void)
 
     pmem_worker = kthread_run(pmem_worker_thread,
         &pmem_proxy_rb, "pmem_worker");
+    if (IS_ERR(pmem_worker)) {
+        printk(KERN_WARNING "PMO: no pmem_worker (%ld); renamed pages "
+            "are committed synchronously\n", PTR_ERR(pmem_worker));
+        pmem_worker = NULL;
+    }
 }
 
 static int ring_buffer_push(struct proxy_ring_buffer *rb,
@@ -51,6 +63,7 @@ static int ring_buffer_push(struct proxy_ring_buffer *rb,
     }
     rb->buffer[atomic_read(&rb->head)] = *req;
     atomic_set(&rb->head, next_head);
+    atomic_inc(&rb->pushed);
     spin_unlock_irqrestore(&rb->lock, flags);
 
     return 0;
@@ -78,7 +91,7 @@ static int pmem_worker_thread(void *data)
     struct proxy_ring_buffer *rb = (struct proxy_ring_buffer *) data;
     struct page_save_req req;
 
-    while (!kthread_should_stop()) {
+    for (;;) {
         int rb_size = pmem_proxy_rb_occupancy();
         trace_printk("Current Ring buffer size = %d\n", rb_size);
         if (ring_buffer_pop(rb, &req) == 0) {
@@ -90,6 +103,16 @@ static int pmem_worker_thread(void *data)
                 !PMO_DRAM_AS_BUFFER_IS_ENABLED())
                     ? req.sg_working
                     : NULL);
+            /* The stage-2 copies are flushed stores issued on this CPU; a
+             * fence on the committing CPU does not order them, so fence
+             * here before reporting the last queued page as done. */
+            if (pmem_proxy_rb_occupancy() == 0)
+                pmo_barrier();
+            atomic_inc(&rb->completed);
+            wake_up(&pmem_proxy_drain_wq);
+        } else if (kthread_should_stop()) {
+            /* Stop only once the ring is empty, so no queued page is lost. */
+            break;
         } else {
             trace_printk("[RENAMING] PARK pmem_worker_thread, Q(%d)\n",
                 rb_size);
@@ -116,14 +139,37 @@ int async_persist_page(struct skcipher_request *req,
         .sg_working = sg_working,
     };
     struct mm_struct *mm = current->mm;
+    int ret, rb_size;
 
-    int rb_size = pmem_proxy_rb_occupancy();
-    int ret = ring_buffer_push(&pmem_proxy_rb, &persist_req);
-    pmo_stats_sum_ring_buffer(&mm->pmo_stats, rb_size);
+    /* Nothing would consume the ring: let the caller commit the page. */
+    if (!pmem_worker)
+        return -ENODEV;
+
+    ret = ring_buffer_push(&pmem_proxy_rb, &persist_req);
+    /* Occupancy after the push, so the recorded peak includes this page. */
+    rb_size = pmem_proxy_rb_occupancy();
+
+    if (ret == 0)
+        pmo_stats_sum_ring_buffer(&mm->pmo_stats, rb_size);
     trace_printk("[RENAMING] (%d) = ring_buffer_push(%d) done, size = %d\n",
         ret, pagenum, rb_size);
 
     return ret;
+}
+
+/*
+ * Wait until every page pushed so far has been copied to primary and fenced.
+ * Must run while the requests' sg lists, local_iv and skcipher request are
+ * still valid, i.e. before memcpy_dirtypages() returns.
+ */
+void pmem_proxy_drain(void)
+{
+    struct proxy_ring_buffer *rb = &pmem_proxy_rb;
+
+    if (!pmem_worker)
+        return;
+    wait_event(pmem_proxy_drain_wq,
+        atomic_read(&rb->completed) == atomic_read(&rb->pushed));
 }
 
 int pmem_proxy_rb_occupancy(void)
@@ -135,6 +181,9 @@ int pmem_proxy_rb_occupancy(void)
 
 void pmem_proxy_exit(void)
 {
+    /* The worker exits only with an empty ring, but drain explicitly so a
+     * caller that skipped pmem_proxy_drain() still loses nothing. */
+    pmem_proxy_drain();
     if (pmem_worker) {
         kthread_stop(pmem_worker);
         pmem_worker = NULL;

@@ -1538,4 +1538,5 @@ int async_persist_page(struct skcipher_request *req,
     struct vpma_area_struct *vpma, size_t pagenum, char *local_iv,
     struct scatterlist *sg_primary, struct scatterlist *sg_shadow,
     struct scatterlist *sg_working);
+void pmem_proxy_drain(void);
 void pmem_proxy_exit(void);

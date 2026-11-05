@@ -75,6 +75,11 @@ SYSCALL_DEFINE2(psync, __u64, starting_vma_address, __u64, size)
      * time, and don't  handle memory barriers at all.*/
     mutex_lock(&vpma->psync_mutex);
 
+    /* FPMO+: the previous psync's stage 2 may still be copying shadow ->
+     * primary.  The shadow is its redo source, so let it finish before stage
+     * 1 below overwrites the shadow; the worker then also clears bits 2/3. */
+    pmem_proxy_drain_vpma(vpma);
+
     /* Indicate that we're in the process of persisting the persistent
      * data into the shadow PMO */
     while (pmo_test_and_lock(2, pmo))
@@ -93,12 +98,17 @@ SYSCALL_DEFINE2(psync, __u64, starting_vma_address, __u64, size)
     pmo_sync_pages(vpma, starting_vma_address, !size);
     // pmo_add_total_pages(vpma);
 
-    /* Emit write barrier. By this point, all primary pages should be
-     * updated. */
+    /* Emit write barrier.  By this point every dirty page is in the shadow
+     * and, unless FPMO+ deferred stage 2 (pmem_proxy_can_defer()), in
+     * primary as well. */
     pmo_barrier();
 
-    pmo_unlock_bit(3, pmo);
-    pmo_unlock_bit(2, pmo);
+    /* Ends COPYING (bits 3 and 2) now, or, if a deferred stage 2 is still
+     * copying, leaves that to the worker's last page. */
+    pmem_proxy_end_commit(vpma);
+    /* No commit ran (bit 3 never set): release the bit-2 lock taken above. */
+    if (!pmo_bit_is_set(3, pmo) && atomic_read(&vpma->stage2_pending) == 0)
+        pmo_unlock_bit(2, pmo);
     mutex_unlock(&vpma->psync_mutex);
 
     return 0;
@@ -140,11 +150,6 @@ void pmo_sync_pages(struct vpma_area_struct *vpma,
         }
 
         memcpy_dirtypages(&dirty_ll, vpma);
-
-        if (PMO_IS_DIRTYPAGE_RENAMING()) {
-            trace_printk("[RENAMING] Call pmem_proxy_exit()\n");
-            pmem_proxy_exit();
-        }
     }
 
     if (update_checksum && PMO_WHOLE_IS_ENABLED() &&
@@ -290,6 +295,10 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
     struct skcipher_request *req;
     char local_iv[16];
     struct pmo_entry *pmo = vpma->pmo_ptr;
+    bool defer;
+    /* Set on the first push past the capacity: this psync's remaining
+     * pages are committed synchronously (num_ring_buffer_overflow pages). */
+    bool spill = false;
 
     if (PMO_PPs_IS_ENABLED())
     {
@@ -311,17 +320,45 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
      * nothing more. This really shouldn't happen, so log the condition.
      */
     WARN_ON(pmo_test_and_lock(3, pmo));
+    /* Commit point: the shadow and its checksums are durable (barrier
+     * above), so persist the COPYING state before primary is written.  A
+     * crash from here on redoes shadow -> primary (recover()). */
+    pmo_sync(&pmo->state, sizeof(pmo->state));
+    pmo_barrier();
+    pmem_proxy_begin_commit(vpma);
 
     if (!PMO_NOENC_IS_ENABLED())
         pmo_stats_start_psynctime_encrypt(&mm->pmo_stats);
+
+    defer = PMO_IS_DIRTYPAGE_RENAMING() && pmem_proxy_can_defer();
+    if (PMO_IS_DIRTYPAGE_RENAMING()) {
+        /* Say which way FPMO+ stage 2 runs whenever that changes. */
+        static int last_defer = -1;
+
+        if (last_defer != defer) {
+            last_defer = defer;
+            printk(KERN_INFO "PMO: FPMO+ stage 2 %s\n", defer
+                ? "deferred (overlaps the next transaction)"
+                : "synchronous (this mode needs psync's buffers)");
+        }
+    }
+    if (PMO_IS_DIRTYPAGE_RENAMING()) {
+        int n_dirty = 0;
+
+        list_for_each_entry(cursor, &(*dirty_ll)->list, list)
+            n_dirty++;
+        pmem_proxy_set_limit(n_dirty);
+    }
 
     /* FIXME: How can the page be destroyed if it's dirty...? */
     list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list)
     {
         if (!PMO_PAGE_IS_DESTROYED(vpma, cursor->pagenum))
         {
-            if (PMO_IS_DIRTYPAGE_RENAMING()) {
-                async_persist_page(req, vpma,
+            bool queued = false;
+
+            if (PMO_IS_DIRTYPAGE_RENAMING() && !spill) {
+                int ret = async_persist_page(req, vpma,
                     cursor->pagenum, local_iv,
                     &cursor->sg_primary,
                     &cursor->sg_shadow,
@@ -329,8 +366,25 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
                     !PMO_DRAM_AS_BUFFER_IS_ENABLED())
                         ? &cursor->sg_working
                         : NULL);
+
+                queued = (ret == 0);
+                if (ret == -ENOSPC) {
+                    /* Proxy buffer full: back-pressure.  Stop queuing and
+                     * commit this and every remaining page here, as
+                     * non-renaming FPMO does, so the cost is
+                     * (N_d - C) synchronous commits.  The pages already
+                     * queued keep copying in parallel unless they share
+                     * req and local_iv with ours (PPs): then let them
+                     * finish first, once.  Capacity costs overlap, never
+                     * the page. */
+                    spill = true;
+                    if (!pmem_proxy_pages_independent())
+                        pmem_proxy_drain_vpma(vpma);
+                }
             }
-            else {
+            if (spill)
+                mm->pmo_stats.num_ring_buffer_overflow++;
+            if (!queued) {
                 pmo_handle_memcpy_sync(req, vpma, cursor->pagenum, local_iv,
                                    &cursor->sg_primary,
                                    &cursor->sg_shadow,
@@ -349,6 +403,11 @@ void memcpy_dirtypages(struct pmo_pages **dirty_ll,
             pmo_crypto_wakeup(vpma);
         }
     }
+    /* Unless stage 2 may run on (pmem_proxy_can_defer()), every renamed
+     * page must reach primary before req and the stack local_iv the queued
+     * requests point to go out of scope. */
+    if (PMO_IS_DIRTYPAGE_RENAMING() && !defer)
+        pmem_proxy_drain_vpma(vpma);
     pmo_barrier();
 
     list_for_each_entry_safe(cursor, temp, &(*dirty_ll)->list, list)

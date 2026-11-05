@@ -126,6 +126,18 @@ void pmo_flush_verify_batch(struct vpma_area_struct *vpma)
 	}
 }
 
+/* Wait until every verification work item queued so far has run.  Must be
+ * called (after pmo_flush_verify_batch) before the vpma, its working_data or
+ * its primary/shadow mappings go away: _checksum_work_func dereferences the
+ * vpma and writes the digest through vpma->shadow, so work that outlives the
+ * vpma is a use-after-free that scribbles 32 B of hash over whatever reused
+ * the memory (seen as a corrupted runqueue lock -> oops in the idle task). */
+void pmo_wait_verify_work(void)
+{
+	if (PMO_GET_ASYNC_WOKRER_NUM() > 1 && verify_wq)
+		flush_workqueue(verify_wq);
+}
+
 void pmo_initialize_verify_thread(struct vpma_area_struct *vpma)
 {
 	int thread_num = PMO_GET_ASYNC_WOKRER_NUM();
@@ -134,6 +146,14 @@ void pmo_initialize_verify_thread(struct vpma_area_struct *vpma)
 		int num_workers = PMO_GET_ASYNC_WOKRER_NUM();
 		if (num_workers > num_online_cpus())
 			num_workers	= num_online_cpus();
+		/* One workqueue for the lifetime of the kernel.  Re-allocating it
+		 * per attach leaked the previous queue together with any work still
+		 * pending on it, which nothing could then flush. */
+		if (verify_wq) {
+			workqueue_set_max_active(verify_wq, num_workers);
+			trace_printk("Verification Queue reused (max_active=%d)\n", num_workers);
+			return;
+		}
 		verify_wq = alloc_workqueue("integrity_verify_wq", WQ_UNBOUND | WQ_CPU_INTENSIVE, num_workers);
 		if (verify_wq) {
 			trace_printk("Verification Queue is created successfully\n");
@@ -151,7 +171,10 @@ void pmo_initialize_verify_thread(struct vpma_area_struct *vpma)
 				kvmalloc(sizeof(struct fault_ptr_struct), GFP_KERNEL);
 			fault_ptr->vpma = vpma;
 			fault_ptr->pagenum = i;
-			sprintf(thread_name, "verify_%s_%d", vpma->name, i);
+			/* vpma->name is a full path; bound the write (the
+			 * kthread name is truncated to TASK_COMM_LEN anyway). */
+			snprintf(thread_name, sizeof(thread_name),
+					"verify_%s_%d", vpma->name, i);
 			vpma->working_data[i].verify_thread =
 				kthread_create_on_node(_verify_fault_thread,
 						fault_ptr, cpu_to_node(current_cpu), thread_name);
@@ -172,6 +195,7 @@ void pmo_cleanup_verify_workers(void)
 {
     if (verify_wq) {
         destroy_workqueue(verify_wq);
+        verify_wq = NULL;
 		trace_printk("[NEW] Destroy the verification queue SUCCESSFULLY\n");
 	}
 	else {

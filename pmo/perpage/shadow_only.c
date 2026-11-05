@@ -91,7 +91,7 @@ void pmo_handle_page_shadow(struct vpma_area_struct *vpma, size_t offset)
         struct skcipher_request *req = skcipher_request_alloc(tfm, GFP_KERNEL);
         struct scatterlist sg_primary, sg_shadow;
         char local_iv[16];
-        DECLARE_COMPLETION(wait);
+        DECLARE_COMPLETION_ONSTACK(wait);
 
         memcpy(local_iv, vpma->crypto.pmo_iv, 16);
 

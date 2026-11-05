@@ -109,7 +109,7 @@ void _pmo_handle_page_dram_crypto_dram(struct vpma_area_struct *vpma, size_t off
 	struct scatterlist sg_enc_working, sg_working;
 
 	char local_iv[16];
-	DECLARE_COMPLETION(wait);
+	DECLARE_COMPLETION_ONSTACK(wait);
 
 	memcpy (local_iv, vpma->crypto.pmo_iv, 16);
 	skcipher_request_set_callback (req, CRYPTO_TFM_REQ_MAY_BACKLOG,
@@ -146,7 +146,7 @@ void _pmo_handle_page_dram_crypto(struct vpma_area_struct *vpma, unsigned long i
 	struct scatterlist sg_primary, sg_working;
 
 	char local_iv[16];
-	DECLARE_COMPLETION(wait);
+	DECLARE_COMPLETION_ONSTACK(wait);
 
 	memcpy (local_iv, vpma->crypto.pmo_iv, 16);
 	skcipher_request_set_callback (req, CRYPTO_TFM_REQ_MAY_BACKLOG,
@@ -306,7 +306,7 @@ void pmo_handle_dirty_dram (struct vpma_area_struct *vpma, unsigned long offset)
 	struct scatterlist sg_shadow, sg_working;
 
 	char local_iv[16];
-	DECLARE_COMPLETION(wait);
+	DECLARE_COMPLETION_ONSTACK(wait);
 
 	memcpy (local_iv, vpma->crypto.pmo_iv, 16);
 	skcipher_request_set_callback (req, CRYPTO_TFM_REQ_MAY_BACKLOG,

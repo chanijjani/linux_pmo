@@ -135,7 +135,7 @@ void pmo_handle_page_both(struct vpma_area_struct *vpma, size_t offset)
         char local_iv[16];
 		struct mm_struct *mm = current->mm;
 
-        DECLARE_COMPLETION(wait);
+        DECLARE_COMPLETION_ONSTACK(wait);
 
         memcpy(local_iv, vpma->crypto.pmo_iv, 16);
 

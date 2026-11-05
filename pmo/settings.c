@@ -484,7 +484,7 @@ static ssize_t pmo_fault_tolerance_write(struct file *filp, const char *buff,
 		// 	printk (KERN_INFO "LAZY FAULT TOLERANCE\n");
 		// 	return len;
 		case (1):
-			PMO_OLD_EAGER_FAULT_TOLERANCE();
+			PMO_SET_OLD_EAGER_FAULT_TOLERANCE();
 			printk (KERN_INFO "OLD EAGER FAULT TOLERANCE\n");
 			return len;
 		// case (3):
@@ -761,6 +761,37 @@ static struct proc_ops pmo_verify_cost_ns_fops = {
 	.proc_write = pmo_verify_cost_ns_write,
 };
 
+/* /proc/pmo/proxy_capacity_pct: FPMO+ proxy-buffer capacity as a percentage
+ * of each psync's dirty-page count; 0 = whole ring (default). */
+static ssize_t pmo_proxy_capacity_pct_write(struct file *filp,
+		const char __user *buff, size_t len, loff_t *off)
+{
+	int pct;
+
+	if (kstrtoint_from_user(buff, len, 0, &pct) || pct < 0 || pct > 1000) {
+		printk(KERN_WARNING "proxy_capacity_pct must be 0..1000\n");
+		return -EINVAL;
+	}
+	pmem_proxy_set_capacity_pct(pct);
+	printk(KERN_INFO "Set proxy buffer capacity to %d%% of dirty pages%s\n",
+			pct, pct ? "" : " (0 = whole ring)");
+	return len;
+}
+
+static ssize_t pmo_proxy_capacity_pct_read(struct file *file,
+		char __user *ubuf, size_t count, loff_t *ppos)
+{
+	char buf[16];
+	int n = scnprintf(buf, sizeof(buf), "%d\n", pmem_proxy_get_capacity_pct());
+
+	return simple_read_from_buffer(ubuf, count, ppos, buf, n);
+}
+
+static struct proc_ops pmo_proxy_capacity_pct_fops = {
+	.proc_read = pmo_proxy_capacity_pct_read,
+	.proc_write = pmo_proxy_capacity_pct_write,
+};
+
 static struct proc_ops pmo_hash_algo_fops = {
 	.proc_read = pmo_hash_algo_read,
 	.proc_write = pmo_hash_algo_write,
@@ -769,6 +800,7 @@ static struct proc_ops pmo_hash_algo_fops = {
 struct proc_dir_entry *pmo_checksum_batch_size_entry;
 struct proc_dir_entry *pmo_verify_cost_ns_entry;
 struct proc_dir_entry *pmo_hash_algo_entry;
+struct proc_dir_entry *pmo_proxy_capacity_pct_entry;
 
 void pmo_proc_init(void)
 {
@@ -785,6 +817,8 @@ void pmo_proc_init(void)
 	pmo_fault_tolerance_entry = proc_create("fault_tolerance", 0660, dir, &pmo_fault_tolerance_fops);
 	pmo_verify_cost_ns_entry = proc_create("verify_cost_ns", 0660, dir, &pmo_verify_cost_ns_fops);
 	pmo_hash_algo_entry = proc_create("hash_algo", 0660, dir, &pmo_hash_algo_fops);
+	pmo_proxy_capacity_pct_entry = proc_create("proxy_capacity_pct", 0660, dir,
+			&pmo_proxy_capacity_pct_fops);
 	pmo_proc_stats_init(dir);
 	return;
 }

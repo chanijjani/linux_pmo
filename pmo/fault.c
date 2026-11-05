@@ -212,6 +212,11 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 	struct mm_struct *mm = current->mm;
 	unsigned long long int tick, tock;
 
+	/* FPMO+: this page's shadow -> primary copy from the last psync may
+	 * still be queued.  Primary is what gets verified and mapped, so wait
+	 * for it; pages the worker already finished pass straight through. */
+	pmem_proxy_page_wait(vpma, pagenum);
+
 	/* Page is handled, but it's not timely */
 	if ( PMO_PRED_IS_ENABLED() && !PMO_TEST_PAGE_IS_TIMELY(vpma, pagenum) 
 			&& PMO_TEST_IS_HANDLED(vpma, pagenum) &&
@@ -322,13 +327,18 @@ handle_page_destroyed:
 
 out2:
 
-	if (PMO_IV_IS_ENABLED()
-		// && PMO_NOENC_IS_ENABLED()
-		// && (PMO_OLD_EAGER_FAULT_TOLERANCE()
-		// 		|| PMO_NEW_EAGER_FAULT_TOLERANCE()
-		// 		|| PMO_ENABLE_DIRTYPAGE_RENAMING())) {
-	){
-		/* Check whether hash matches stored hash */
+	/* Check whether hash matches stored hash -- but only for the page
+	 * handlers that do not verify on their own: the NOENC copy
+	 * (nocrypto.c) and the PPb decrypt (together.c).  The PPs handler
+	 * (shadow_only.c) and the encrypted DRAM handlers (dram.c) already
+	 * verified the page inside pmo_handle_page(), and WHOLE verifies the
+	 * object at attach (whole.c).  Verifying again here is not just
+	 * redundant: under PPs+IVd the stored hash is of the *encrypted*
+	 * primary (see pmo_obtain_shadow_hash()), so hashing the decrypted
+	 * shadow can never match and every fault would take the mismatch
+	 * path (4 printks + dump_stack, ~50 ms) inside the page_iv bracket. */
+	if (PMO_IV_IS_ENABLED() &&
+			(PMO_NOENC_IS_ENABLED() || PMO_PPb_IS_ENABLED())) {
 	    if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
 			trace_printk("Async Checksum Verification, # of Workers = %d\n", PMO_GET_ASYNC_WOKRER_NUM());
 			nonblocking_verify_fault(vpma, pagenum);

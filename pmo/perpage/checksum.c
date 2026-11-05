@@ -215,7 +215,7 @@ void handle_pmo_hash_identical(struct vpma_area_struct *vpma,
                                 32);
 
 	if (!PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
-                if (PMO_OLD_EAGER_FAULT_TOLERANCE()) {
+                if (PMO_IS_OLD_EAGER_FAULT_TOLERANCE()) {
                         memcpy_flushcache(OFFSET_TO_SHA(shadow_sha_offset), sha256hash,
                                 32);
                         pmo_barrier();

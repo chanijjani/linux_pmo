@@ -439,7 +439,8 @@ struct pmo_stats_struct {
 
 		/* page stats */
 		all_pages, pages_dirtied,
-		num_ring_buffer_push, max_ring_buffer_size, sum_ring_buffer_size;
+		num_ring_buffer_push, max_ring_buffer_size, sum_ring_buffer_size,
+		num_ring_buffer_overflow;
 
 
 	atomic64_t

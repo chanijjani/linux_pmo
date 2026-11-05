@@ -526,6 +526,7 @@
 0x00000000	refcount_dec_not_one	vmlinux	EXPORT_SYMBOL	
 0x00000000	public_key_verify_signature	vmlinux	EXPORT_SYMBOL_GPL	
 0x00000000	fsverity_ioctl_read_metadata	vmlinux	EXPORT_SYMBOL_GPL	
+0x00000000	reset_hung_task_detector	vmlinux	EXPORT_SYMBOL_GPL	
 0x00000000	default_qdisc_ops	vmlinux	EXPORT_SYMBOL	
 0x00000000	__tracepoint_br_fdb_update	vmlinux	EXPORT_SYMBOL_GPL	
 0x00000000	free_netdev	vmlinux	EXPORT_SYMBOL	

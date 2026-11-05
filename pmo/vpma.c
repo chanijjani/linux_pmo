@@ -71,6 +71,15 @@ void zap_vpmas(struct rb_root *root)
 	while(!RB_EMPTY_ROOT(root)) {
 		data = container_of(node,struct vpma_area_struct, node);
 
+		/* A detach may still be queued on the per-vpma kthread.  Let it
+		 * finish before anything below is freed: the worker takes
+		 * pm_sem itself now, so it would otherwise be free to run its
+		 * teardown against a faulted_pages_ll we have already released.
+		 * Taken before mmap_read_lock/pm_sem so it cannot deadlock. */
+		pmo_wait_disable_work(data);
+		/* ...and any FPMO+ stage 2 still copying into this PMO. */
+		pmem_proxy_drain_vpma(data);
+
 		mmap_read_lock(data->current_mm);
 		down_write(&data->pm_sem);
 		pmo_handle_abend(data, data->vma->vm_start); 
@@ -127,6 +136,12 @@ struct vpma_area_struct * create_vpma_for_pmo(__u64 address, __u64 size,
 		goto out_unlock;
 	}
 
+	/* kmem_cache_alloc() does not zero: no stage-2 work yet. */
+	atomic_set(&vpma->stage2_pending, 0);
+	vpma->stage2_map = NULL;
+	spin_lock_init(&vpma->stage2_lock);
+	vpma->stage2_committing = false;
+
 	/* Initialize the pmo semaphore */
 	init_rwsem(&vpma->pm_sem);
 	down_write(&vpma->pm_sem);
@@ -157,6 +172,7 @@ struct vpma_area_struct * create_vpma_for_pmo(__u64 address, __u64 size,
 	vpma->destroyed = kvcalloc(sizeof(atomic_t), size/PAGE_SIZE, GFP_KERNEL);
 
 	vpma->lock_page = kvcalloc(sizeof(struct mutex), size/PAGE_SIZE, GFP_KERNEL);;
+	vpma->stage2_map = bitmap_zalloc(size/PAGE_SIZE, GFP_KERNEL);
 	for (i = 0; i < size/PAGE_SIZE; i++)
 		mutex_init(&vpma->lock_page[i]);
 	atomic_set(&vpma->fault_order, 0);

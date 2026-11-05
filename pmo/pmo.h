@@ -255,6 +255,17 @@ struct vpma_area_struct {
 	/* Struct of sha256 range when using integrity verification */
 	struct pmo_range_struct pmo_range;
 
+	/* FPMO+ stage 2 (nonblocking/renaming.c): pages queued for the
+	 * shadow -> primary copy and not yet in primary, as a count and a
+	 * per-page bitmap (NULL if it could not be allocated). */
+	atomic_t stage2_pending;
+	unsigned long *stage2_map;
+	/* stage2_committing: a psync is between persisting COPYING and its end.
+	 * Under stage2_lock, the COPYING state (pmo->state bits 3 and 2) is
+	 * ended only when no psync is committing and nothing is pending. */
+	spinlock_t stage2_lock;
+	bool stage2_committing;
+
 
 	/* Struct of additional fields for encryption */
 	struct pmo_encryption_struct crypto;
@@ -1538,5 +1549,13 @@ int async_persist_page(struct skcipher_request *req,
     struct vpma_area_struct *vpma, size_t pagenum, char *local_iv,
     struct scatterlist *sg_primary, struct scatterlist *sg_shadow,
     struct scatterlist *sg_working);
-void pmem_proxy_drain(void);
+bool pmem_proxy_can_defer(void);
+bool pmem_proxy_pages_independent(void);
+void pmem_proxy_begin_commit(struct vpma_area_struct *vpma);
+void pmem_proxy_end_commit(struct vpma_area_struct *vpma);
+void pmem_proxy_drain_vpma(struct vpma_area_struct *vpma);
+void pmem_proxy_page_wait(struct vpma_area_struct *vpma, size_t pagenum);
+void pmem_proxy_set_capacity_pct(int pct);
+int pmem_proxy_get_capacity_pct(void);
+void pmem_proxy_set_limit(int n_dirty);
 void pmem_proxy_exit(void);

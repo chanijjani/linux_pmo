@@ -212,6 +212,11 @@ struct pmo_pages * pmo_handle_pagefault(struct vm_area_struct *vma, size_t addre
 	struct mm_struct *mm = current->mm;
 	unsigned long long int tick, tock;
 
+	/* FPMO+: this page's shadow -> primary copy from the last psync may
+	 * still be queued.  Primary is what gets verified and mapped, so wait
+	 * for it; pages the worker already finished pass straight through. */
+	pmem_proxy_page_wait(vpma, pagenum);
+
 	/* Page is handled, but it's not timely */
 	if ( PMO_PRED_IS_ENABLED() && !PMO_TEST_PAGE_IS_TIMELY(vpma, pagenum) 
 			&& PMO_TEST_IS_HANDLED(vpma, pagenum) &&

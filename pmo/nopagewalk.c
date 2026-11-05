@@ -113,6 +113,10 @@ inline void add_to_dirtypages(struct vpma_area_struct *vpma,
 
 inline void vpma_clear(struct vpma_area_struct *vpma)
 {
+	/* Nothing may still be copying into this vpma when it is freed. */
+	pmem_proxy_drain_vpma(vpma);
+	bitmap_free(vpma->stage2_map);
+	vpma->stage2_map = NULL;
 	/* Keep in sync with pagewalk.c: nothing may still point at the vpma
 	 * when it is freed. */
 	pmo_kill_disable_thread(vpma);

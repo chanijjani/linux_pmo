@@ -327,6 +327,9 @@ int do_detach(struct mm_struct *mm, char *path)
 		return -ENOENT;
 	}
 
+	/* FPMO+: finish a deferred stage 2 before access is torn down. */
+	pmem_proxy_drain_vpma(vpma);
+
 	if (PMO_ASYNC_CHECKSUM_IS_ENABLED()) {
 		/* Push out the partial batch, then wait for every queued
 		 * verification to finish: the work items hold a raw vpma
